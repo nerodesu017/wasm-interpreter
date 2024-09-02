@@ -12,6 +12,27 @@ use crate::{Error, Result};
 
 pub(crate) mod code;
 
+// const CUSTOM_SECTION: u8 = 0x00;
+// const TYPE_SECTION: u8 = 0x01;
+// const IMPORT_SECTION: u8 = 0x02;
+// const FUNCTION_SECTION: u8 = 0x03;
+// const TABLE_SECTION: u8 = 0x04;
+// const MEMORY_SECTION: u8 = 0x05;
+// const GLOBAL_SECTION: u8 = 0x06;
+// const EXPORT_SECTION: u8 = 0x07;
+// const START_SECTION: u8 = 0x08;
+// const ELEMENT_SECTION: u8 = 0x09;
+// const CODE_SECTION: u8 = 0x0A;
+// const DATA_SECTION: u8 = 0x0B;
+// const DATA_COUNT_SECTION: u8 = 0x0C;
+// const TAG_SECTION: u8 = 0x0D;
+
+#[derive(Debug)]
+pub(crate) enum WasmType {
+    Module,
+    Component,
+}
+
 /// Information collected from validating a module.
 /// This can be used to create a [crate::RuntimeInstance].
 pub struct ValidationInfo<'bytecode> {
@@ -29,6 +50,8 @@ pub struct ValidationInfo<'bytecode> {
     pub(crate) func_blocks: Vec<Span>,
     /// The start function which is automatically executed during instantiation
     pub(crate) start: Option<FuncIdx>,
+    #[allow(dead_code)]
+    pub(crate) bytes_type: WasmType,
 }
 
 pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
@@ -41,10 +64,22 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     };
 
     trace!("Validating version number");
-    let [0x01, 0x00, 0x00, 0x00] = wasm.strip_bytes::<4>()? else {
-        return Err(Error::InvalidVersion);
+    let bytes_type = match wasm.strip_bytes::<4>()? {
+        [0x01, 0x00, 0x00, 0x00] => WasmType::Module,
+        [0x0D, 0x00, 0x01, 0x00] => WasmType::Component,
+        bytes => {
+            trace!(
+                "Unknown version: {:X} {:X} {:X} {:X}",
+                bytes[0],
+                bytes[1],
+                bytes[2],
+                bytes[3]
+            );
+            return Err(Error::InvalidMagic);
+        }
     };
     debug!("Header ok");
+    trace!("WasmType: {:?}", bytes_type);
 
     let mut header = None;
     read_next_header(&mut wasm, &mut header)?;
@@ -55,97 +90,126 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         })
     };
 
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
+    let mut types = Vec::new();
+    let mut imports = Vec::new();
+    let mut functions = Vec::new();
+    let mut tables = Vec::new();
+    let mut memories = Vec::new();
+    let mut globals = Vec::new();
+    let mut exports = Vec::new();
+    let mut start = None;
+    let mut func_blocks = Vec::new();
 
-    let types = handle_section(&mut wasm, &mut header, SectionTy::Type, |wasm, _| {
-        wasm.read_vec(FuncType::read)
-    })?
-    .unwrap_or_default();
+    while let Some(inner_header) = header.take() {
+        let ty = inner_header.ty;
+        header = Some(inner_header);
+        trace!("Found a {:?} section", ty);
+        match ty {
+            SectionTy::Custom => {
+                handle_section(&mut wasm, &mut header, SectionTy::Custom, |wasm, h| {
+                    wasm.skip(h.contents.len())
+                })
+                .unwrap_or_default();
+            }
+            SectionTy::Type => {
+                types = handle_section(&mut wasm, &mut header, SectionTy::Type, |wasm, _| {
+                    wasm.read_vec(FuncType::read)
+                })?
+                .unwrap_or_default();
+            }
+            SectionTy::Import => {
+                imports = handle_section(&mut wasm, &mut header, SectionTy::Import, |wasm, _| {
+                    wasm.read_vec(Import::read)
+                })?
+                .unwrap_or_default();
+            }
+            SectionTy::Function => {
+                functions =
+                    handle_section(&mut wasm, &mut header, SectionTy::Function, |wasm, _| {
+                        wasm.read_vec(|wasm| wasm.read_var_u32().map(|u| u as usize))
+                    })?
+                    .unwrap_or_default();
+            }
+            SectionTy::Table => {
+                tables = handle_section(&mut wasm, &mut header, SectionTy::Table, |wasm, _| {
+                    wasm.read_vec(TableType::read)
+                })?
+                .unwrap_or_default();
+            }
+            SectionTy::Memory => {
+                memories = handle_section(&mut wasm, &mut header, SectionTy::Memory, |wasm, _| {
+                    wasm.read_vec(MemType::read)
+                })?
+                .unwrap_or_default();
+                if memories.len() > 1 {
+                    return Err(Error::MoreThanOneMemory);
+                }
+            }
+            SectionTy::Global => {
+                globals = handle_section(&mut wasm, &mut header, SectionTy::Global, |wasm, _| {
+                    wasm.read_vec(|wasm| {
+                        // TODO validate instructions in `global.init_expr`. Furthermore all of these instructions need to be constant.
+                        //  See https://webassembly.github.io/spec/core/valid/instructions.html#valid-constant
+                        //  Maybe we can also execute constant expressions right here so they do not even exist in the runtime environment. <-- Needs further research to check if this is even possible
+                        Global::read(wasm)
+                    })
+                })?
+                .unwrap_or_default();
+            }
+            SectionTy::Export => {
+                exports = handle_section(&mut wasm, &mut header, SectionTy::Export, |wasm, _| {
+                    wasm.read_vec(Export::read)
+                })?
+                .unwrap_or_default();
+            }
+            SectionTy::Start => {
+                start = handle_section(&mut wasm, &mut header, SectionTy::Start, |wasm, _| {
+                    wasm.read_var_u32().map(|idx| idx as FuncIdx)
+                })?;
+            }
+            SectionTy::Element => {
+                handle_section(
+                    &mut wasm,
+                    &mut header,
+                    SectionTy::Element,
+                    |_, _| -> Result<()> {
+                        todo!("element section not yet supported");
+                    },
+                )?;
+            }
+            SectionTy::DataCount => {
+                handle_section(
+                    &mut wasm,
+                    &mut header,
+                    SectionTy::DataCount,
+                    |_, _| -> Result<()> {
+                        todo!("data count section not yet supported");
+                    },
+                )?;
+            }
+            SectionTy::Code => {
+                func_blocks =
+                    handle_section(&mut wasm, &mut header, SectionTy::Code, |wasm, h| {
+                        code::validate_code_section(wasm, h, &types, &functions, &globals)
+                    })?
+                    .unwrap_or_default();
+            }
+            SectionTy::Data => {
+                handle_section(
+                    &mut wasm,
+                    &mut header,
+                    SectionTy::Data,
+                    |_, _| -> Result<()> { todo!("data section not yet supported") },
+                )?;
+            }
+        }
 
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
+        while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
-    let imports = handle_section(&mut wasm, &mut header, SectionTy::Import, |wasm, _| {
-        wasm.read_vec(Import::read)
-    })?
-    .unwrap_or_default();
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let functions = handle_section(&mut wasm, &mut header, SectionTy::Function, |wasm, _| {
-        wasm.read_vec(|wasm| wasm.read_var_u32().map(|u| u as usize))
-    })?
-    .unwrap_or_default();
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let tables = handle_section(&mut wasm, &mut header, SectionTy::Table, |wasm, _| {
-        wasm.read_vec(TableType::read)
-    })?
-    .unwrap_or_default();
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let memories = handle_section(&mut wasm, &mut header, SectionTy::Memory, |wasm, _| {
-        wasm.read_vec(MemType::read)
-    })?
-    .unwrap_or_default();
-    if memories.len() > 1 {
-        return Err(Error::MoreThanOneMemory);
+        trace!("{:#?}", header);
     }
 
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let globals = handle_section(&mut wasm, &mut header, SectionTy::Global, |wasm, _| {
-        wasm.read_vec(|wasm| {
-            // TODO validate instructions in `global.init_expr`. Furthermore all of these instructions need to be constant.
-            //  See https://webassembly.github.io/spec/core/valid/instructions.html#valid-constant
-            //  Maybe we can also execute constant expressions right here so they do not even exist in the runtime environment. <-- Needs further research to check if this is even possible
-            Global::read(wasm)
-        })
-    })?
-    .unwrap_or_default();
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let exports = handle_section(&mut wasm, &mut header, SectionTy::Export, |wasm, _| {
-        wasm.read_vec(Export::read)
-    })?
-    .unwrap_or_default();
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let start = handle_section(&mut wasm, &mut header, SectionTy::Start, |wasm, _| {
-        wasm.read_var_u32().map(|idx| idx as FuncIdx)
-    })?;
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
-        todo!("element section not yet supported")
-    })?;
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |_, _| {
-        todo!("data count section not yet supported")
-    })?;
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let func_blocks = handle_section(&mut wasm, &mut header, SectionTy::Code, |wasm, h| {
-        code::validate_code_section(wasm, h, &types, &functions, &globals)
-    })?
-    .unwrap_or_default();
-
-    assert_eq!(func_blocks.len(), functions.len(), "these should be equal"); // TODO check if this is in the spec
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
-
-    let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Data, |_, _| {
-        todo!("data section not yet supported")
-    })?;
-
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
+    assert_eq!(func_blocks.len(), functions.len(), "these should be equal");
 
     // All sections should have been handled
     if let Some(header) = header {
@@ -164,6 +228,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         exports,
         func_blocks,
         start,
+        bytes_type,
     })
 }
 
