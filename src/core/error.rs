@@ -41,6 +41,8 @@ pub enum Error {
     InvalidLimitsType(u8),
     InvalidMutType(u8),
     MoreThanOneMemory,
+    SizeMinIsGreaterThanMax,
+    MemSizeTooBig,
     InvalidGlobalIdx(GlobalIdx),
     GlobalIsConst,
     RuntimeError(RuntimeError),
@@ -109,6 +111,12 @@ impl Display for Error {
             )),
             Error::MoreThanOneMemory => {
                 f.write_str("As of not only one memory is allowed per module.")
+            },
+            Error::SizeMinIsGreaterThanMax => {
+                f.write_str("size minimum must not be greater than maximum")
+            },
+            Error::MemSizeTooBig => {
+                f.write_str("memory size must be at most 65536 pages (4GiB)")
             }
             Error::InvalidGlobalIdx(idx) => f.write_fmt(format_args!(
                 "An invalid global index `{idx}` was specified"
