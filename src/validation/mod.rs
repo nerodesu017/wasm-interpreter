@@ -1,13 +1,17 @@
-use alloc::vec::{self, Vec};
+use alloc::vec::Vec;
+use globals::read_constant_instructions;
+use read_constant_expression::read_constant_expression;
 
 use crate::core::indices::{FuncIdx, TypeIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
+use crate::core::reader::types::data::{DataMode, DataModeActive, DataSegment};
 use crate::core::reader::types::export::Export;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::import::Import;
+use crate::core::reader::types::opcode::END;
 use crate::core::reader::types::{
-    opcode, ActiveDataForMemoryX, DataType, FuncType, MemType, PassiveData, TableType,
+    opcode, ActiveElem, ElemMode, ElemType, FuncType, MemType, TableType
 };
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::{Error, Result};
@@ -15,6 +19,7 @@ use crate::{Error, Result};
 pub(crate) mod code;
 pub(crate) mod globals;
 pub(crate) mod validation_stack;
+pub(crate) mod read_constant_expression;
 
 /// Information collected from validating a module.
 /// This can be used to create a [crate::RuntimeInstance].
@@ -119,39 +124,90 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
+
     let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
         let mut elem_vec: Vec<()> = Vec::new();
-
+        // https://webassembly.github.io/spec/core/binary/modules.html#element-section
          // TODO: replace with wasm.read_vec in the future
          let vec_length = wasm.read_var_u32().unwrap();
          trace!("Element sections no.: {}", vec_length);
          for i in 0..vec_length {
             let ttype = wasm.read_var_u32().unwrap();
+            // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
             // https://webassembly.github.io/spec/core/binary/modules.html#element-section
+            // We can treat the ttype as a 3bit integer
+            // If it's not 3 bits I am not sure what to do 
+
+            // bit 0 => diff between passive|declartive and active segment
+            // bit 1 => presence of an explicit table index for an active segment
+            // bit 2 => use of element type and element expressions instead of element kind and element indices
+
+            if (ttype & 0b111) > 0b111 {
+                // what should we do?
+                // error or is fine?
+                // should be unspecified
+            }
+
+            // decide if we should 
+            // let elem_mode = if ttype & 0b001 == 0b001 {
+            //     // passive or declarative
+            //     if ttype & 0b010 == 0b010 {
+            //         ElemMode::Declarative
+            //     } else {
+            //         ElemMode::Passive
+            //     }
+            // } else {
+            //     if ttype & 0b010 == 0b010 {
+            //         let table_idx = wasm.read_var_u32().unwrap();
+            //         let bytes = Vec::new();
+            //         bytes.push(wasm.read_var_u32().unwrap());
+            //         while bytes.last().unwrap() != END {
+            //             bytes.push(wasm.read_var_u32().unwrap());
+            //         }
+                    
+            //         ElemMode::Active(ActiveElem {
+            //             table: table_idx,
+            //             offset: bytes
+            //         })
+            //     } else {
+
+            //     }
+            // }
+
+
+
             match ttype {
-                0 => {
+                0 => { 
+                    let expr = {
+                        // TODO: actually verify this expression
+                        let mut const_expr = read_constant_expression(wasm).unwrap();
+                    };
+                    let func_idxs: Vec<u32> = wasm.read_vec(|w| {
+                        w.read_var_u32()
+                    }).unwrap();
+
                     // type funcref
                 }
                 1 => {
-
+                    // type elemkind
                 }
                 2 => {
-
+                    // type elemkind
                 }
                 3 => {
-
+                    // type elemkind
                 }
                 4 => {
-
+                    // type funcref
                 }
                 5 => {
-
+                    // type reftype
                 }
                 6 => {
-
+                    // type reftype
                 }
                 7 => {
-
+                    // type reftype
                 }
                 _ => unimplemented!()
             }
@@ -159,31 +215,23 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         todo!("element section not yet supported")
     })?;
 
+    let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
+        todo!("element section not yet supported")
+    })?;
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
+    
+    // let data_count: Option<u32> = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, h| {
+    //     if h.contents.len() > 0 {
+    //         let data_count = wasm.read_var_u32().unwrap();
+    //         trace!("Data count: {}", data_count);
+    //         Ok(Some(data_count))
+    //     } else {
+    //         Ok(None)
+    //     }
+    // })?.unwrap();
 
-    // let data_count = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, _| {
-    //     // let size = wasm.read_var_u32().unwrap();
-    //     // trace!("Data Count Section Size: {}", size);
-    //     // assert_eq!(size, 1);
-    //     let len = wasm.read_var_u32().unwrap();
-    //     trace!("Data Count: {}", len);
-    //     Ok(len)
-    // })?
-    // .unwrap_or_default();
-
-    // let data_count = {
-    //     let section_id = wasm.read_u8().unwrap();
-    //     trace!("Data count section id: {}", section_id);
-    //     let section_size = wasm.read_var_u32().unwrap();
-    //     // assert_eq!(section_size, 2);
-    //     let size = wasm.read_var_u32().unwrap();
-    //     trace!("Data count: {}", size);
-    //     size
-    // };
-
-    let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, _| {
-        todo!("data count section not yet implemented")
-
+    let data_count: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |_, _| {
+        todo!("data section not yet supported")
     })?;
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
@@ -198,39 +246,33 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     let data_section = handle_section(&mut wasm, &mut header, SectionTy::Data, |wasm, _| {
-        let mut data_vec: Vec<DataType> = Vec::new();
+        let mut data_vec: Vec<DataSegment> = Vec::new();
 
-        // TODO: replace with wasm.read_vec in the future
-        let vec_length = wasm.read_var_u32().unwrap();
-        trace!("Data sections no.: {}", vec_length);
-        for i in 0..vec_length {
+        wasm.read_vec(|wasm| {
             let mode = wasm.read_var_u32().unwrap();
-            let data_sec: DataType;
+            let data_sec: DataSegment;
             match mode {
                 0 => {
                     // active { memory 0, offset e }
-                    trace!("Data section #{} is active", i);
+                    trace!("Data section: active");
                     let offset = {
                         // TODO: actually verify this offset
-                        let mut bytes: Vec<u8> = Vec::new();
-                        bytes.push(wasm.read_u8().unwrap());
-                        while *bytes.last().unwrap() != opcode::END {
-                            bytes.push(wasm.read_u8().unwrap());
-                        }
-                        bytes
+                        let const_expr = read_constant_expression(wasm).unwrap();
+                        const_expr
                     };
-                    data_sec = DataType::ActiveDataForMemoryX(ActiveDataForMemoryX {
-                        memory_idx: 0,
-                        offset,
-                        init: wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap(),
-                    });
+
+                    data_sec = DataSegment {
+                        mode: DataMode::Active(DataModeActive { memory_idx: 0, offset }),
+                        init: wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap()
+                    }
                 }
                 1 => {
                     // passive
-                    trace!("Data section #{} is active", i);
-                    data_sec = DataType::PassiveData(PassiveData {
+                    trace!("Data section: passive");
+                    data_sec = DataSegment {
+                        mode: DataMode::Passive,
                         init: wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap(),
-                    });
+                    }
                 }
                 2 => {
                     // mode active { memory x, offset e }
@@ -246,13 +288,16 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             };
             trace!("{:#?}", data_sec);
             data_vec.push(data_sec);
-        }
+            Ok(())
+        })?;
 
         Ok(data_vec)
     })?
     .unwrap_or_default();
 
-    // assert_eq!(data_section.len(), data_count as usize);
+    // if data_count.is_some() {
+    //     assert_eq!(data_count.unwrap() as usize, data_section.len());
+    // }
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 

@@ -5,6 +5,7 @@ use const_interpreter_loop::run_const;
 use function_ref::FunctionRef;
 use interpreter_loop::run;
 use locals::Locals;
+use store::TableInst;
 use value_stack::Stack;
 
 use crate::core::reader::types::export::{Export, ExportDesc};
@@ -20,7 +21,7 @@ use crate::{RuntimeError, ValType, ValidationInfo};
 
 // TODO
 pub(crate) mod assert_validated;
-mod const_interpreter_loop;
+pub mod const_interpreter_loop;
 pub mod function_ref;
 pub mod hooks;
 mod interpreter_loop;
@@ -39,7 +40,7 @@ where
     pub wasm_bytecode: &'b [u8],
     types: Vec<FuncType>,
     exports: Vec<Export>,
-    store: Store,
+    pub store: Store,
     pub hook_set: H,
 }
 
@@ -341,6 +342,15 @@ where
                 .collect()
         };
 
+        let table_instances = validation_info
+            .tables
+            .iter()
+            .map(|ty| TableInst {
+                ty: ty.clone(),
+                elem: Vec::new()
+            })
+            .collect();
+
         let memory_instances: Vec<MemInst> = validation_info
             .memories
             .iter()
@@ -371,6 +381,7 @@ where
 
         Store {
             funcs: function_instances,
+            tables: table_instances,
             mems: memory_instances,
             globals: global_instances,
         }

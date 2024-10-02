@@ -18,6 +18,7 @@ pub mod import;
 pub mod memarg;
 pub mod opcode;
 pub mod values;
+pub mod data;
 
 /// <https://webassembly.github.io/spec/core/binary/types.html#number-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -313,78 +314,9 @@ impl WasmReadable for MemType {
     }
 }
 
-#[derive(Debug)]
-pub enum DataType {
-    ActiveDataForMemoryX(ActiveDataForMemoryX),
-    PassiveData(PassiveData),
-}
 
-pub struct ActiveDataForMemoryX {
-    pub memory_idx: u32,
-    // https://webassembly.github.io/spec/core/binary/instructions.html#expressions
-    // constant expression
-    pub offset: Vec<u8>,
-    pub init: Vec<u8>,
-}
 
-impl Debug for ActiveDataForMemoryX {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        let mut init_str = alloc::string::String::new();
 
-        let mut iter = self.init.iter().peekable();
-        // only if it's valid do we print is as a normal utf-8 char, otherwise, hex
-        while let Some(&byte) = iter.next() {
-            if let Ok(valid_char) = alloc::string::String::from_utf8(Vec::from(&[byte])) {
-                init_str.push_str(valid_char.as_str());
-            } else {
-                init_str.push_str(&format!("\\x{:02x}", byte));
-            }
-        }
-
-        let final_offset = {
-            if self.offset.len() == 3 && self.offset[0] == 65 {
-                self.offset[1] as i64
-            } else {
-                -1
-            }
-        };
-        f.debug_struct("ActiveDataForMemoryX")
-            .field("memory_idx", &self.memory_idx)
-            .field(
-                "offset",
-                if final_offset == -1 {
-                    &self.offset
-                } else {
-                    &final_offset
-                },
-            )
-            .field("init", &init_str)
-            .finish()
-    }
-}
-
-pub struct PassiveData {
-    pub init: Vec<u8>,
-}
-
-impl Debug for PassiveData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        let mut init_str = alloc::string::String::new();
-
-        let mut iter = self.init.iter().peekable();
-        while let Some(&byte) = iter.next() {
-            if let Ok(valid_char) = alloc::string::String::from_utf8(Vec::from(&[byte])) {
-                init_str.push_str(valid_char.as_str());
-            } else {
-                // If it's not valid UTF-8, print it as hex
-                init_str.push_str(&format!("\\x{:02x}", byte));
-            }
-        }
-        f.debug_struct("PassiveData")
-            .field("init", &init_str)
-            .finish()
-    }
-}
 
 #[derive(Debug)]
 pub struct ElemType {
