@@ -2,7 +2,6 @@
 //!
 //! See: <https://webassembly.github.io/spec/core/binary/types.html>
 
-use alloc::format;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Formatter};
 
@@ -19,6 +18,7 @@ pub mod memarg;
 pub mod opcode;
 pub mod values;
 pub mod data;
+pub mod element;
 
 /// <https://webassembly.github.io/spec/core/binary/types.html#number-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -208,6 +208,12 @@ pub struct Limits {
     pub max: Option<u32>,
 }
 
+impl Limits {
+    pub const MAX_PAGES: u32 = 1 << 16;
+    pub const MAX_BYTES: u32 = u32::MAX;
+    pub const PAGE_SIZE: u32 = 1 << 16;
+}
+
 impl Debug for Limits {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self.max {
@@ -318,45 +324,3 @@ impl WasmReadable for MemType {
 
 
 
-#[derive(Debug)]
-pub struct ElemType {
-    pub ttype: RefType,
-    // constant expression
-    pub init: Vec<Vec<u8>>,
-    pub mode: ElemMode,
-}
-
-#[derive(Debug)]
-pub enum ElemMode {
-    Passive,
-    Active(ActiveElem),
-    Declarative,
-}
-
-pub struct ActiveElem {
-    pub table: u32,
-    pub offset: Vec<u8>,
-}
-
-impl Debug for ActiveElem {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        let final_offset = {
-            if self.offset.len() == 3 && self.offset[0] == 65 {
-                self.offset[1] as i64
-            } else {
-                -1
-            }
-        };
-        f.debug_struct("ActiveElem")
-            .field("table", &self.table)
-            .field(
-                "offset",
-                if final_offset == -1 {
-                    &self.offset
-                } else {
-                    &final_offset
-                },
-            )
-            .finish()
-    }
-}

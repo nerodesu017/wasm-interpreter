@@ -62,6 +62,15 @@ impl Stack {
         }
     }
 
+    /// Returns a cloned copy of the top value on the stack, or `None` if the stack is empty
+    pub fn peek_unknown_value(&self) -> Option<Value> {
+        if let Some(val) = self.values.last() {
+            Some(val.clone())
+        } else {
+            None
+        }
+    }
+
     /// Push a value to the value stack
     pub fn push_value(&mut self, value: Value) {
         self.values.push(value);

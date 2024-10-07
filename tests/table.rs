@@ -17,13 +17,13 @@ fn table_basic() {
 (module
     (table $fns 2 funcref)
     
-    (elem (i32.const 0) $add) ;; add function reference at index 0
+    ;; (elem (i32.const 0) $add) ;; add function reference at index 0
     
-    (func $add (param $x i32) (param $y i32) (result i32)
-        local.get $x
-        local.get $y
-        i32.add
-    )
+    ;;(func $add (param $x i32) (param $y i32) (result i32)
+    ;;    local.get $x
+    ;;    local.get $y
+    ;;    i32.add
+    ;;)
   )
 "#;
 

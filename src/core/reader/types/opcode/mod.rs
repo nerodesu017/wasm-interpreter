@@ -144,3 +144,6 @@ pub const F64_REINTERPRET_I64: u8 = 0xBF;
 pub const REF_NULL: u8 = 0xD0;
 pub const REF_IS_NULL: u8 = 0xD1;
 pub const REF_FUNC: u8 = 0xD2;
+pub const FC_EXTENSIONS: u8 = 0xFC;
+
+pub mod fc_extensions;
