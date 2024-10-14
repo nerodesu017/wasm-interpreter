@@ -334,11 +334,11 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
                     let memory = memories.get(0).unwrap();
 
-                    let max_bytes = if memory.limits.max.is_some() {
-                        memory.limits.max.unwrap()
+                    let max_bytes = if memory.limits.max.is_some() && memory.limits.max.unwrap() != Limits::MAX_PAGES {
+                        memory.limits.max.unwrap() * Limits::PAGE_SIZE
                     } else {
-                        Limits::MAX_PAGES
-                    } * Limits::PAGE_SIZE;
+                        Limits::MAX_BYTES
+                    };
 
                     if byte_vec.len() + val as usize > max_bytes as usize {
                         panic!("Out of bounds");   
