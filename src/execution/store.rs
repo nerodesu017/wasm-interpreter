@@ -4,6 +4,7 @@ use core::iter;
 
 use crate::core::indices::TypeIdx;
 use crate::core::reader::span::Span;
+use crate::core::reader::types::data::DataSegment;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::{MemType, TableType, ValType};
 use crate::execution::value::{Ref, Value};
@@ -18,6 +19,7 @@ pub struct Store {
     pub tables: Vec<TableInst>,
     pub mems: Vec<MemInst>,
     pub globals: Vec<GlobalInst>,
+    pub data: Vec<DataSegment>
 }
 
 pub struct FuncInst {
@@ -39,7 +41,8 @@ pub struct MemInst {
 }
 
 impl MemInst {
-    const PAGE_SIZE: usize = 1 << 16;
+    pub const PAGE_SIZE: usize = 1 << 16;
+    pub const MAX_PAGES: usize = 1 << 16;
     pub fn new(ty: MemType) -> Self {
         let initial_size = Self::PAGE_SIZE * ty.limits.min as usize;
 
@@ -49,13 +52,12 @@ impl MemInst {
         }
     }
 
-    #[allow(dead_code)]
     pub fn grow(&mut self, delta_pages: usize) {
         self.data
             .extend(iter::repeat(0).take(delta_pages * Self::PAGE_SIZE))
     }
 
-    #[allow(dead_code)]
+    /// Can never be bigger than 65,356 pages
     pub fn size(&self) -> usize {
         self.data.len() / Self::PAGE_SIZE
     }

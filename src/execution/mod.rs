@@ -8,6 +8,7 @@ use locals::Locals;
 use store::TableInst;
 use value_stack::Stack;
 
+use crate::core::reader::types::data::DataSegment;
 use crate::core::reader::types::export::{Export, ExportDesc};
 use crate::core::reader::types::FuncType;
 use crate::core::reader::WasmReader;
@@ -357,6 +358,17 @@ where
             .map(|ty| MemInst::new(*ty))
             .collect();
 
+        let data_sections: Vec<DataSegment> = validation_info
+            .data
+            .iter()
+            .map(|d| {
+                DataSegment {
+                    mode: d.mode.clone(),
+                    init: d.init.clone()
+                }
+            })
+            .collect();
+
         let global_instances: Vec<GlobalInst> = validation_info
             .globals
             .iter()
@@ -384,6 +396,7 @@ where
             tables: table_instances,
             mems: memory_instances,
             globals: global_instances,
+            data: data_sections
         }
     }
 }

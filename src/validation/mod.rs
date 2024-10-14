@@ -268,15 +268,19 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     //     }
     // })?.unwrap();
 
-    let data_count: Option<()> =
-        handle_section(&mut wasm, &mut header, SectionTy::DataCount, |_, _| {
-            todo!("data section not yet supported")
+    let data_count: Option<u32> =
+        handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, _| {
+            wasm.read_var_u32()
+            // todo!("data count section not yet supported")
         })?;
+    if data_count.is_some() {
+        trace!("data count: {}", data_count.unwrap());
+    }
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     let func_blocks = handle_section(&mut wasm, &mut header, SectionTy::Code, |wasm, h| {
-        code::validate_code_section(wasm, h, &types, &functions, &globals)
+        code::validate_code_section(wasm, h, &types, &functions, &globals, &memories, &data_count)
     })?
     .unwrap_or_default();
 

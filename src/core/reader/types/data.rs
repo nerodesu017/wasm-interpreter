@@ -11,11 +11,13 @@ pub struct DataSegment {
     pub mode: DataMode,
 }
 
+#[derive(Clone)]
 pub enum DataMode {
     Passive,
     Active(DataModeActive),
 }
 
+#[derive(Clone)]
 pub struct DataModeActive {
     pub memory_idx: u32,
     pub offset: Span,
