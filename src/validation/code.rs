@@ -389,7 +389,7 @@ fn read_instructions(
 
                 let memarg = MemArg::read_unvalidated(wasm);
                 assert!(memarg.align < 4, "f32.store: alignment is not less or equal to 4");
-                
+
                 // Value to store
                 stack.assert_pop_val_type(ValType::NumType(NumType::F32))?;
                 // Address
@@ -718,5 +718,6 @@ fn read_instructions(
             }
             _ => return Err(Error::InvalidInstr(first_instr_byte)),
         }
+    
     }
 }

@@ -530,6 +530,27 @@ pub(super) fn run<H: HookSet>(
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes());
                 trace!("Instruction: i32.store [{relative_address} {data_to_store}] -> []");
             }
+            I64_STORE => {
+                let memarg = MemArg::read_unvalidated(&mut wasm);
+
+                let data_to_store: u32 = stack.pop_value(ValType::NumType(NumType::I64)).into();
+                let relative_address: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                let mem = store.mems.get_mut(0).unwrap_validated(); // there is only one memory allowed as of now
+
+                // The spec states that this should be a 33 bit integer
+                // See: https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions
+                let address = memarg.offset.checked_add(relative_address);
+                let memory_location = address
+                    .and_then(|address| {
+                        let address = address as usize;
+                        mem.data.get_mut(address..(address + 8))
+                    })
+                    .expect("TODO trap here");
+
+                memory_location.copy_from_slice(&data_to_store.to_le_bytes());
+                trace!("Instruction: i64.store [{relative_address} {data_to_store}] -> []");
+            }
             F32_STORE => {
                 let memarg = MemArg::read_unvalidated(&mut wasm);
 
