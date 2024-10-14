@@ -3,6 +3,7 @@ pub const NOP: u8 = 0x01;
 pub const END: u8 = 0x0B;
 pub const RETURN: u8 = 0x0F;
 pub const CALL: u8 = 0x10;
+pub const DROP: u8 = 0x1A;
 pub const LOCAL_GET: u8 = 0x20;
 pub const LOCAL_SET: u8 = 0x21;
 pub const LOCAL_TEE: u8 = 0x22;
@@ -12,7 +13,6 @@ pub const I32_LOAD: u8 = 0x28;
 pub const I64_LOAD: u8 = 0x29;
 pub const F32_LOAD: u8 = 0x2A;
 pub const F64_LOAD: u8 = 0x2B;
-
 pub const I32_LOAD8_S: u8 = 0x2C;
 pub const I32_LOAD8_U: u8 = 0x2D;
 pub const I32_LOAD16_S: u8 = 0x2E;
@@ -23,20 +23,15 @@ pub const I64_LOAD16_S: u8 = 0x32;
 pub const I64_LOAD16_U: u8 = 0x33;
 pub const I64_LOAD32_S: u8 = 0x34;
 pub const I64_LOAD32_U: u8 = 0x35;
-
 pub const I32_STORE: u8 = 0x36;
-
 pub const I64_STORE: u8 = 0x37;
-
 pub const F32_STORE: u8 = 0x38;
 pub const F64_STORE: u8 = 0x39;
-
 pub const I32_STORE8: u8 = 0x3A;
 pub const I32_STORE16: u8 = 0x3B;
 pub const I64_STORE8: u8 = 0x3C;
 pub const I64_STORE16: u8 = 0x3D;
 pub const I64_STORE32: u8 = 0x3E;
-
 pub const MEMORY_SIZE: u8 = 0x3F;
 pub const MEMORY_GROW: u8 = 0x40;
 pub const I32_CONST: u8 = 0x41;

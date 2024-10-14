@@ -10,6 +10,8 @@
 //!      [`Error::RuntimeError`](crate::Error::RuntimeError) variant, which as per 2., we don not
 //!      want
 
+use core::f32::consts::E;
+
 use alloc::vec::Vec;
 
 use crate::{
@@ -51,7 +53,7 @@ pub(super) fn run<H: HookSet>(
     wasm.move_start_to(func_inst.code_expr).unwrap();
 
     use crate::core::reader::types::opcode::*;
-    loop {
+    'MAIN_LOOP: loop {
         // call the instruction hook
         #[cfg(feature = "hooks")]
         hooks.instruction_hook(wasm_bytecode, wasm.pc);
@@ -111,6 +113,9 @@ pub(super) fn run<H: HookSet>(
 
                 wasm.move_start_to(func_to_call_inst.code_expr)
                     .unwrap_validated();
+            }
+            DROP => {
+                stack.drop_value();
             }
             LOCAL_GET => {
                 stack.get_local(wasm.read_var_u32().unwrap_validated() as LocalIdx);
@@ -454,7 +459,7 @@ pub(super) fn run<H: HookSet>(
 
                 stack.push_value(Value::I64(data as u64));
                 trace!("Instruction: i64.load16_u [{relative_address}] -> [{data}]");
-            }      
+            }
             I64_LOAD32_S => {
                 let memarg = MemArg::read_unvalidated(&mut wasm);
                 let relative_address: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -2016,20 +2021,51 @@ pub(super) fn run<H: HookSet>(
                         let mem = unsafe { store.mems.get_unchecked_mut(0) };
                         let data_idx = wasm.read_var_u32().unwrap_validated() as DataIdx;
                         let data = unsafe { store.data.get_unchecked_mut(data_idx) };
-                        let n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-
-                        if s + n > data.init.len() as i32 || d + n > mem.data.len() as i32 {
-                            // trap
+                        let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        if n < 0 || s < 0 || d < 0 {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
                         }
 
-                        if n == 0 {
-                            // return
+                        if s as usize + n as usize > data.init.len()
+                            || d as usize + n as usize > mem.data.len()
+                        {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
                         }
 
-                        // let b =
-                        todo!()
+                        while n != 0 {
+                            let b = data.init[s as usize];
+                            {
+                                let memarg = MemArg {
+                                    align: 0,
+                                    offset: 0,
+                                };
+
+                                let data_to_store: i32 = b as i32;
+                                let relative_address: u32 = d as u32;
+
+                                let mem = store.mems.get_mut(0).unwrap_validated();
+
+                                // The spec states that this should be a 33 bit integer
+                                // See: https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions
+                                // ea => effective address
+                                let ea = memarg.offset.checked_add(relative_address);
+                                let memory_location = ea
+                                    .and_then(|address| {
+                                        let address = address as usize;
+                                        mem.data.get_mut(address..(address + 1))
+                                    })
+                                    .expect("TODO trap here");
+
+                                memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
+                            }
+                            d = d + 1;
+                            s = s + 1;
+                            n = n - 1;
+                        }
+
+                        trace!("Instruction: memory.init");
                     }
                     DATA_DROP => {
                         // Here is debatable
@@ -2048,15 +2084,142 @@ pub(super) fn run<H: HookSet>(
                     }
                     MEMORY_COPY => {
                         let mem = unsafe { store.mems.get_unchecked_mut(0) };
-                        let n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        if n < 0 || s < 0 || d < 0 {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
+                        }
 
-                        // if s+n > mem.data.len() ||
-                        //     d+n >
-                        todo!()
+                        if s as usize + n as usize > mem.data.len()
+                            || d as usize + n as usize > mem.data.len()
+                        {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
+                        }
+
+                        while n > 0 {
+                            let is_d_less_or_equal_to_s = d <= s;
+                            let (temp_d, temp_s) = if is_d_less_or_equal_to_s == true {
+                                (d, s)
+                            } else {
+                                (d + n - 1, s + n - 1)
+                            };
+
+                            {
+                                let memarg = MemArg {
+                                    align: 0,
+                                    offset: 0,
+                                };
+                                let relative_address: u32 = temp_s as u32;
+
+                                let mem = store.mems.first().unwrap_validated(); // there is only one memory allowed as of now
+
+                                let data: u8 = {
+                                    // The spec states that this should be a 33 bit integer
+                                    // See: https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions
+                                    let _address = memarg.offset.checked_add(relative_address);
+                                    let data = memarg
+                                        .offset
+                                        .checked_add(relative_address)
+                                        .and_then(|address| {
+                                            let address = address as usize;
+                                            mem.data.get(address..(address + 1)).map(|slice| {
+                                                slice.try_into().expect("this to be exactly 1 byte")
+                                            })
+                                        })
+                                        .expect("TODO trap here");
+
+                                    u8::from_le_bytes(data)
+                                };
+
+                                stack.push_value(Value::I32(data as u32));
+                            }
+                            // i32_load8_u {offset 0, align 0};
+
+                            {
+                                let memarg = MemArg {
+                                    align: 0,
+                                    offset: 0,
+                                };
+
+                                let data_to_store: i32 =
+                                    stack.pop_value(ValType::NumType(NumType::I32)).into();
+                                let relative_address: u32 = temp_d as u32;
+
+                                let mem = store.mems.get_mut(0).unwrap_validated();
+
+                                // The spec states that this should be a 33 bit integer
+                                // See: https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions
+                                // ea => effective address
+                                let ea = memarg.offset.checked_add(relative_address);
+                                let memory_location = ea
+                                    .and_then(|address| {
+                                        let address = address as usize;
+                                        mem.data.get_mut(address..(address + 1))
+                                    })
+                                    .expect("TODO trap here");
+
+                                memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
+                            }
+                            // i32_store8 {offset 0, align 0};
+
+                            if is_d_less_or_equal_to_s == true {
+                                d = d + 1;
+                                s = s + 1;
+                            }
+                            n = n - 1;
+                        }
+
+                        trace!("Instruction: memory.copy");
                     }
-                    MEMORY_FILL => {}
+                    MEMORY_FILL => {
+                        let mem = unsafe { store.mems.get_unchecked_mut(0) };
+                        let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let val: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                        if n < 0 || d < 0 {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
+                        }
+
+                        if n as usize + d as usize > mem.data.len() {
+                            return Err(RuntimeError::MemoryAccessOutOfBounds);
+                        }
+                        
+                        while n > 0 {
+                            {
+                                let memarg = MemArg {
+                                    align: 0,
+                                    offset: 0,
+                                };
+
+                                let data_to_store: i32 = val;
+                                let relative_address: u32 = d as u32;
+
+                                let mem = store.mems.get_mut(0).unwrap_validated();
+
+                                // The spec states that this should be a 33 bit integer
+                                // See: https://webassembly.github.io/spec/core/syntax/instructions.html#memory-instructions
+                                // ea => effective address
+                                let ea = memarg.offset.checked_add(relative_address);
+                                let memory_location = ea
+                                    .and_then(|address| {
+                                        let address = address as usize;
+                                        mem.data.get_mut(address..(address + 1))
+                                    })
+                                    .expect("TODO trap here");
+
+                                memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
+                            }
+                            // i32_store8 {offset 0, align 0};
+
+                            d = d+1;
+                            // val = val;
+                            n = n-1;
+                        }
+                        
+                        trace!("Instruction: memory.copy");
+                    }
                     _ => unreachable!(),
                 }
             }
