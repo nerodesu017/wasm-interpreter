@@ -104,7 +104,7 @@ pub fn i64_multiply() {
     assert_eq!(
         -30_i64,
         instance
-            .invoke(&instance.get_function_by_index(0, 0).unwrap(), (-10_i64))
+            .invoke(&instance.get_function_by_index(0, 0).unwrap(), -10_i64)
             .unwrap()
     );
 
