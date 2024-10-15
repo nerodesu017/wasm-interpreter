@@ -28,7 +28,7 @@ fn memory_basic() {
 "#
     .split("\n")
     .map(|el| el.trim())
-    .filter(|el| el.len() > 0)
+    .filter(|el| !el.is_empty())
     .collect::<Vec<&str>>();
 
     w.iter().for_each(|wat| {
@@ -45,7 +45,7 @@ fn memory_min_greater_than_max() {
     "#
     .split("\n")
     .map(|el| el.trim())
-    .filter(|el| el.len() > 0)
+    .filter(|el| !el.is_empty())
     .collect::<Vec<&str>>();
 
     w.iter().for_each(|wat| {
@@ -70,7 +70,7 @@ fn memory_size_must_be_at_most_4gib() {
         "#
     .split("\n")
     .map(|el| el.trim())
-    .filter(|el| el.len() > 0)
+    .filter(|el| !el.is_empty())
     .collect::<Vec<&str>>();
 
     w.iter().for_each(|wat| {
@@ -217,13 +217,13 @@ fn i32_and_i64_loads() {
     assert_result!(i, i32_load16_s, 20000, 20000);
     assert_result!(i, i32_load16_u, 40000, 40000);
 
-    assert_result!(i, i32_load8_s, 0xfedc6543 as u32, 0x43);
-    assert_result!(i, i32_load8_s, 0x3456cdef, 0xffffffef as u32);
-    assert_result!(i, i32_load8_u, 0xfedc6543 as u32, 0x43);
+    assert_result!(i, i32_load8_s, 0xfedc6543_u32, 0x43);
+    assert_result!(i, i32_load8_s, 0x3456cdef, 0xffffffef_u32);
+    assert_result!(i, i32_load8_u, 0xfedc6543_u32, 0x43);
     assert_result!(i, i32_load8_u, 0x3456cdef, 0xef);
-    assert_result!(i, i32_load16_s, 0xfedc6543 as u32, 0x6543);
-    assert_result!(i, i32_load16_s, 0x3456cdef, 0xffffcdef as u32);
-    assert_result!(i, i32_load16_u, 0xfedc6543 as u32, 0x6543);
+    assert_result!(i, i32_load16_s, 0xfedc6543_u32, 0x6543);
+    assert_result!(i, i32_load16_s, 0x3456cdef, 0xffffcdef_u32);
+    assert_result!(i, i32_load16_u, 0xfedc6543_u32, 0x6543);
     assert_result!(i, i32_load16_u, 0x3456cdef, 0xcdef);
 
     assert_result!(i, i64_load8_s, -1_i64, -1_i64);

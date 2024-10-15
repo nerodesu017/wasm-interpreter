@@ -32,7 +32,7 @@ fn table_basic() {
 
     let tables = instance.store.tables;
     assert_eq!(tables.len(), 1);
-    let table1 = tables.get(0).unwrap();
+    let table1 = tables.first().unwrap();
     assert_eq!(table1.ty.lim, Limits {min: 2, max: None});
     assert_eq!(table1.ty.et, RefType::FuncRef);
 }

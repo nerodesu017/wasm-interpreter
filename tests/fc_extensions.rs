@@ -19,7 +19,7 @@ use core::{f32, f64};
 use hexf::{hexf32, hexf64};
 use wasm::{validate, RuntimeInstance};
 
-const WAT: &'static str = r#"
+const WAT: &str = r#"
       (module
       (func (export "{{0}}") (param $x {{1}}) (result {{2}})
           local.get $x
