@@ -963,7 +963,7 @@ pub fn i64_trunc_sat_f32_s() {
     // (assert_return (invoke "i64.trunc_sat_f32_s" (f32.const -nan:0x200000)) (i64.const 0))
 }
 
-#[should_panic(expected = "validation failed: InvalidValidationStackValType(Some(NumType(F32)))")]
+#[should_panic(expected = "validation failed: InvalidValidationStackValType(Some(NumType(F64)))")]
 #[test_log::test]
 pub fn i64_trunc_sat_f32_u_let_it_die() {
     let wat = String::from(WAT)

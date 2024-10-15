@@ -1,7 +1,4 @@
-use alloc::format;
-use alloc::string::String;
 use alloc::vec::Vec;
-use globals::read_constant_instructions;
 use read_constant_expression::read_constant_expression;
 
 use crate::const_interpreter_loop::run_const;
@@ -12,8 +9,7 @@ use crate::core::reader::types::data::{DataMode, DataModeActive, DataSegment};
 use crate::core::reader::types::export::Export;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::import::Import;
-use crate::core::reader::types::opcode::END;
-use crate::core::reader::types::{opcode, FuncType, MemType, TableType};
+use crate::core::reader::types::{FuncType, MemType, TableType};
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::value_stack::Stack;
 use crate::{Error, Limits, Result, Value};
@@ -252,7 +248,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     // })?;
     // #endregion
 
-    let element: Option<()> =
+    let _element: Option<()> =
         handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
             todo!("element section not yet supported")
         })?;
@@ -293,18 +289,16 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
         wasm.read_vec(|wasm| {
             let mode = wasm.read_var_u32().unwrap();
-            let data_sec: DataSegment;
-            match mode {
+            let data_sec: DataSegment = match mode {
                 0 => {
                     // active { memory 0, offset e }
                     trace!("Data section: active");
                     let offset = {
-                        let const_expr = read_constant_expression(wasm).unwrap();
-                        const_expr
+                        read_constant_expression(wasm).unwrap()
                     };
 
                     let value = {
-                        let mut wasm = WasmReader::new(&wasm.full_wasm_binary.clone());
+                        let mut wasm = WasmReader::new(wasm.full_wasm_binary);
                         // The place we are moving the start to should, by all means, be inside the wasm bytecode.
                         wasm.move_start_to(offset)?;
                         let mut stack = Stack::new();
@@ -332,7 +326,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
                     let byte_vec = wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap();
 
-                    let memory = memories.get(0).unwrap();
+                    let memory = memories.first().unwrap();
 
                     let max_bytes = if memory.limits.max.is_some() && memory.limits.max.unwrap() != Limits::MAX_PAGES {
                         memory.limits.max.unwrap() * Limits::PAGE_SIZE
@@ -344,7 +338,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                         panic!("Out of bounds");   
                     }
 
-                    data_sec = DataSegment {
+                    DataSegment {
                         mode: DataMode::Active(DataModeActive {
                             memory_idx: 0,
                             offset,
@@ -356,10 +350,10 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                     // passive
                     // A passive data segment's contents can be copied into a memory using the `memory.init` instruction
                     trace!("Data section: passive");
-                    data_sec = DataSegment {
+                    DataSegment {
                         mode: DataMode::Passive,
                         init: wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap(),
-                    };
+                    }
                 }
                 2 => {
                     // mode active { memory x, offset e }

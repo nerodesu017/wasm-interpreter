@@ -4,8 +4,6 @@ use alloc::{format, vec::Vec};
 
 use crate::core::reader::span::Span;
 
-// use super::opcode::I32_CONST;
-
 pub struct DataSegment {
     pub init: Vec<u8>,
     pub mode: DataMode,
@@ -27,9 +25,9 @@ impl Debug for DataSegment {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         let mut init_str = alloc::string::String::new();
 
-        let mut iter = self.init.iter().peekable();
+        let iter = self.init.iter().peekable();
         // only if it's valid do we print is as a normal utf-8 char, otherwise, hex
-        while let Some(&byte) = iter.next() {
+        for &byte in iter {
             if let Ok(valid_char) = alloc::string::String::from_utf8(Vec::from(&[byte])) {
                 init_str.push_str(valid_char.as_str());
             } else {
@@ -44,11 +42,6 @@ impl Debug for DataSegment {
     }
 }
 
-/// let final_offset = {
-///     active_data_mode.offset.len() == 3 && active_data_mode.offset == I32_CONST {
-/// 
-///     }
-/// }
 /// 
 ///  Usually, we'd have something like this:
 /// ```wasm
@@ -87,8 +80,8 @@ impl Debug for PassiveData {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         let mut init_str = alloc::string::String::new();
 
-        let mut iter = self.init.iter().peekable();
-        while let Some(&byte) = iter.next() {
+        let iter = self.init.iter().peekable();
+        for &byte in iter {
             if let Ok(valid_char) = alloc::string::String::from_utf8(Vec::from(&[byte])) {
                 init_str.push_str(valid_char.as_str());
             } else {

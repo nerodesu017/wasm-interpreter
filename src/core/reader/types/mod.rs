@@ -10,6 +10,8 @@ use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::Result;
 use crate::{unreachable_validated, Error};
 
+pub mod data;
+pub mod element;
 pub mod export;
 pub mod function_code_header;
 pub mod global;
@@ -17,8 +19,6 @@ pub mod import;
 pub mod memarg;
 pub mod opcode;
 pub mod values;
-pub mod data;
-pub mod element;
 
 /// <https://webassembly.github.io/spec/core/binary/types.html#number-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -241,10 +241,8 @@ impl WasmReadable for Limits {
             other => return Err(Error::InvalidLimitsType(other)),
         };
 
-        if limits.max.is_some() {
-            if limits.min > limits.max.unwrap() {
-                return Err(Error::SizeMinIsGreaterThanMax);
-            }
+        if limits.max.is_some() && limits.min > limits.max.unwrap() {
+            return Err(Error::SizeMinIsGreaterThanMax);
         }
 
         Ok(limits)
@@ -319,8 +317,3 @@ impl WasmReadable for MemType {
         }
     }
 }
-
-
-
-
-

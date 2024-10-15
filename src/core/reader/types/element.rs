@@ -6,6 +6,7 @@ use super::RefType;
 
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ElemType {
     pub ttype: RefType,
     // constant expression
@@ -14,6 +15,7 @@ pub struct ElemType {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ElemMode {
     Passive,
     Active(ActiveElem),

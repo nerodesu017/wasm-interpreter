@@ -347,7 +347,7 @@ where
             .tables
             .iter()
             .map(|ty| TableInst {
-                ty: ty.clone(),
+                ty: *ty,
                 elem: Vec::new()
             })
             .collect();

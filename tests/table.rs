@@ -8,8 +8,7 @@
 //       i32.add
 //     )
 //   )
-use wasm::{validate, Error, Limits, RefType, RuntimeInstance, ValidationInfo};
-use wasm::{value, ValType};
+use wasm::{validate, Limits, RefType, RuntimeInstance};
 
 #[test_log::test]
 fn table_basic() {

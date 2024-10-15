@@ -10,8 +10,6 @@
 //!      [`Error::RuntimeError`](crate::Error::RuntimeError) variant, which as per 2., we don not
 //!      want
 
-use core::f32::consts::E;
-
 use alloc::vec::Vec;
 
 use crate::{
@@ -53,7 +51,7 @@ pub(super) fn run<H: HookSet>(
     wasm.move_start_to(func_inst.code_expr).unwrap();
 
     use crate::core::reader::types::opcode::*;
-    'MAIN_LOOP: loop {
+    loop {
         // call the instruction hook
         #[cfg(feature = "hooks")]
         hooks.instruction_hook(wasm_bytecode, wasm.pc);
@@ -709,7 +707,7 @@ pub(super) fn run<H: HookSet>(
                 trace!("Instruction: i64.store32 [{relative_address} {data_to_store}] -> []");
             }
             MEMORY_SIZE => {
-                let mem = store.mems.get(0).unwrap_validated();
+                let mem = store.mems.first().unwrap_validated();
                 stack.push_value(Value::I32(mem.size() as u32));
             }
             MEMORY_GROW => {
@@ -2060,9 +2058,9 @@ pub(super) fn run<H: HookSet>(
 
                                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                             }
-                            d = d + 1;
-                            s = s + 1;
-                            n = n - 1;
+                            d += 1;
+                            s += 1;
+                            n -= 1;
                         }
 
                         trace!("Instruction: memory.init");
@@ -2099,7 +2097,7 @@ pub(super) fn run<H: HookSet>(
 
                         while n > 0 {
                             let is_d_less_or_equal_to_s = d <= s;
-                            let (temp_d, temp_s) = if is_d_less_or_equal_to_s == true {
+                            let (temp_d, temp_s) = if is_d_less_or_equal_to_s {
                                 (d, s)
                             } else {
                                 (d + n - 1, s + n - 1)
@@ -2163,11 +2161,11 @@ pub(super) fn run<H: HookSet>(
                             }
                             // i32_store8 {offset 0, align 0};
 
-                            if is_d_less_or_equal_to_s == true {
-                                d = d + 1;
-                                s = s + 1;
+                            if is_d_less_or_equal_to_s {
+                                d += 1;
+                                s += 1;
                             }
-                            n = n - 1;
+                            n -= 1;
                         }
 
                         trace!("Instruction: memory.copy");
@@ -2213,9 +2211,9 @@ pub(super) fn run<H: HookSet>(
                             }
                             // i32_store8 {offset 0, align 0};
 
-                            d = d+1;
+                            d += 1;
                             // val = val;
-                            n = n-1;
+                            n -= 1;
                         }
                         
                         trace!("Instruction: memory.copy");
