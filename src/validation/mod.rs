@@ -296,6 +296,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                     let offset = {
                         read_constant_expression(wasm).unwrap()
                     };
+                    trace!("{:?}", offset);
 
                     let value = {
                         let mut wasm = WasmReader::new(wasm.full_wasm_binary);
@@ -367,7 +368,8 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                 }
                 _ => unreachable!(),
             };
-            trace!("{:#?}", data_sec);
+
+            trace!("{:?}", data_sec.init);
             data_vec.push(data_sec);
             Ok(())
         })?;

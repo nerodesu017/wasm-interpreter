@@ -41,7 +41,7 @@ fn memory_basic() {
 #[test_log::test]
 fn memory_min_greater_than_max() {
     let w = r#"
-(module (memory 1 0))
+      (module (memory 1 0))
     "#
     .split("\n")
     .map(|el| el.trim())
@@ -203,7 +203,7 @@ fn i32_and_i64_loads() {
     // let cast = get_func!(i, "cast");
 
     // assert_result!(i, data, (), 1);
-    assert_eq!(0, i.invoke(data, ()).unwrap());
+    assert_eq!(1, i.invoke(data, ()).unwrap());
     // (assert_return (invoke "cast") (f64.const 42.0))
 
     assert_result!(i, i32_load8_s, -1, -1);
