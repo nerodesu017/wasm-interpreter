@@ -77,7 +77,7 @@ fn i64_add_one() {
     assert_eq!(
         -5_i64,
         instance
-            .invoke(&instance.get_function_by_index(0, 0).unwrap(), (-6_i64))
+            .invoke(&instance.get_function_by_index(0, 0).unwrap(), -6_i64)
             .unwrap()
     );
 }
