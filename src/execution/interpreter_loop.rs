@@ -116,7 +116,9 @@ pub(super) fn run<H: HookSet>(
                 stack.drop_value();
             }
             LOCAL_GET => {
-                stack.get_local(wasm.read_var_u32().unwrap_validated() as LocalIdx);
+                let local_idx = wasm.read_var_u32().unwrap_validated() as LocalIdx;
+                stack.get_local(local_idx);
+                trace!("Instruction: local.get {} [] -> [t]", local_idx);
             }
             LOCAL_SET => stack.set_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
             LOCAL_TEE => stack.tee_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
@@ -149,7 +151,7 @@ pub(super) fn run<H: HookSet>(
                             let address = address as usize;
                             mem.data.get(address..(address + 4))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     let data: [u8; 4] = data.try_into().expect("this to be exactly 4 bytes");
                     u32::from_le_bytes(data)
@@ -177,7 +179,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 8))
                                 .map(|slice| slice.try_into().expect("this to be exactly 8 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u64::from_le_bytes(data)
                 };
@@ -204,7 +206,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 4))
                                 .map(|slice| slice.try_into().expect("this to be exactly 4 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
                     f32::from_le_bytes(data)
                 };
 
@@ -230,7 +232,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 8))
                                 .map(|slice| slice.try_into().expect("this to be exactly 8 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     f64::from_le_bytes(data)
                 };
@@ -257,7 +259,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 1))
                                 .map(|slice| slice.try_into().expect("this to be exactly 1 byte"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     // let data: [u8; 1] = data.try_into().expect("this to be exactly 1 byte");
                     u8::from_le_bytes(data) as i8
@@ -285,7 +287,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 1))
                                 .map(|slice| slice.try_into().expect("this to be exactly 1 byte"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     // let data: [u8; 1] = data.try_into().expect("this to be exactly 1 byte");
                     u8::from_le_bytes(data)
@@ -313,7 +315,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 2))
                                 .map(|slice| slice.try_into().expect("this to be exactly 2 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u16::from_le_bytes(data) as i16
                 };
@@ -340,7 +342,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 2))
                                 .map(|slice| slice.try_into().expect("this to be exactly 2 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u16::from_le_bytes(data)
                 };
@@ -367,7 +369,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 1))
                                 .map(|slice| slice.try_into().expect("this to be exactly 1 byte"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     // let data: [u8; 1] = data.try_into().expect("this to be exactly 1 byte");
                     u8::from_le_bytes(data) as i8
@@ -395,7 +397,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 1))
                                 .map(|slice| slice.try_into().expect("this to be exactly 1 byte"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     // let data: [u8; 1] = data.try_into().expect("this to be exactly 1 byte");
                     u8::from_le_bytes(data)
@@ -423,7 +425,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 2))
                                 .map(|slice| slice.try_into().expect("this to be exactly 2 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u16::from_le_bytes(data) as i16
                 };
@@ -450,7 +452,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 2))
                                 .map(|slice| slice.try_into().expect("this to be exactly 2 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u16::from_le_bytes(data)
                 };
@@ -477,7 +479,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 4))
                                 .map(|slice| slice.try_into().expect("this to be exactly 4 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u32::from_le_bytes(data) as i32
                 };
@@ -504,7 +506,7 @@ pub(super) fn run<H: HookSet>(
                                 .get(address..(address + 4))
                                 .map(|slice| slice.try_into().expect("this to be exactly 4 bytes"))
                         })
-                        .expect("TODO trap here");
+                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                     u32::from_le_bytes(data)
                 };
@@ -528,7 +530,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 4))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes());
                 trace!("Instruction: i32.store [{relative_address} {data_to_store}] -> []");
@@ -549,7 +551,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 8))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes());
                 trace!("Instruction: i64.store [{relative_address} {data_to_store}] -> []");
@@ -570,7 +572,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 4))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes());
                 trace!("Instruction: f32.store [{relative_address} {data_to_store}] -> []");
@@ -591,7 +593,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 4))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes());
                 trace!("Instruction: f64.store [{relative_address} {data_to_store}] -> []");
@@ -613,7 +615,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 1))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                 trace!("Instruction: i32.store8 [{relative_address} {data_to_store}] -> []");
@@ -635,7 +637,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 2))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..2]);
                 trace!("Instruction: i32.store16 [{relative_address} {data_to_store}] -> []");
@@ -657,7 +659,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 1))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                 trace!("Instruction: i64.store8 [{relative_address} {data_to_store}] -> []");
@@ -679,7 +681,7 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 2))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..2]);
                 trace!("Instruction: i64.store16 [{relative_address} {data_to_store}] -> []");
@@ -701,26 +703,36 @@ pub(super) fn run<H: HookSet>(
                         let address = address as usize;
                         mem.data.get_mut(address..(address + 4))
                     })
-                    .expect("TODO trap here");
+                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..4]);
                 trace!("Instruction: i64.store32 [{relative_address} {data_to_store}] -> []");
             }
             MEMORY_SIZE => {
                 let mem = store.mems.first().unwrap_validated();
-                stack.push_value(Value::I32(mem.size() as u32));
+                let size = mem.size() as u32;
+                stack.push_value(Value::I32(size));
+                trace!("Instruction: memory.size [] -> [{}]", size);
             }
             MEMORY_GROW => {
                 let mem = store.mems.get_mut(0).unwrap_validated();
-                let delta = wasm.read_var_i32().unwrap_validated();
+                let delta: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
-                if delta < 0 || delta as u32 + mem.size() as u32 > MemInst::MAX_PAGES as u32 {
+                let upper_limit = if mem.ty.limits.max.is_some() {
+                    mem.ty.limits.max.unwrap()
+                } else {
+                    MemInst::MAX_PAGES as u32
+                };
+                let pushed_value = if delta < 0 || delta as u32 + mem.size() as u32 > upper_limit {
                     stack.push_value((-1).into());
+                    -1
                 } else {
                     let previous_size: i32 = mem.size() as i32;
                     mem.grow(delta as usize);
                     stack.push_value(previous_size.into());
-                }
+                    previous_size
+                };
+                trace!("Instruction: memory.grow [{}] -> [{}]", delta, pushed_value);
             }
             I32_CONST => {
                 let constant = wasm.read_var_i32().unwrap_validated();
@@ -2054,7 +2066,7 @@ pub(super) fn run<H: HookSet>(
                                         let address = address as usize;
                                         mem.data.get_mut(address..(address + 1))
                                     })
-                                    .expect("TODO trap here");
+                                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                             }
@@ -2125,7 +2137,7 @@ pub(super) fn run<H: HookSet>(
                                                 slice.try_into().expect("this to be exactly 1 byte")
                                             })
                                         })
-                                        .expect("TODO trap here");
+                                        .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                                     u8::from_le_bytes(data)
                                 };
@@ -2155,7 +2167,7 @@ pub(super) fn run<H: HookSet>(
                                         let address = address as usize;
                                         mem.data.get_mut(address..(address + 1))
                                     })
-                                    .expect("TODO trap here");
+                                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                             }
@@ -2183,7 +2195,7 @@ pub(super) fn run<H: HookSet>(
                         if n as usize + d as usize > mem.data.len() {
                             return Err(RuntimeError::MemoryAccessOutOfBounds);
                         }
-                        
+
                         while n > 0 {
                             {
                                 let memarg = MemArg {
@@ -2205,7 +2217,7 @@ pub(super) fn run<H: HookSet>(
                                         let address = address as usize;
                                         mem.data.get_mut(address..(address + 1))
                                     })
-                                    .expect("TODO trap here");
+                                    .ok_or(RuntimeError::MemoryAccessOutOfBounds)?;
 
                                 memory_location.copy_from_slice(&data_to_store.to_le_bytes()[0..1]);
                             }
@@ -2215,7 +2227,7 @@ pub(super) fn run<H: HookSet>(
                             // val = val;
                             n -= 1;
                         }
-                        
+
                         trace!("Instruction: memory.copy");
                     }
                     _ => unreachable!(),
