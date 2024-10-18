@@ -40,8 +40,8 @@ impl ValidationStack {
 
             return match popped {
                 ValidationStackEntry::Val(_) => Ok(()),
-                _ => Err(Error::ExpectedAnOperand)
-            }
+                _ => Err(Error::ExpectedAnOperand),
+            };
         }
 
         Err(Error::EndInvalidValueStack)

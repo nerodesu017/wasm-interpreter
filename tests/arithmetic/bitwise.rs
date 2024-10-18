@@ -2122,10 +2122,7 @@ pub fn i64_bitwise_clz() {
     assert_eq!(
         46_i64,
         instance
-            .invoke(
-                &instance.get_function_by_index(0, 0).unwrap(),
-                192534_i64
-            )
+            .invoke(&instance.get_function_by_index(0, 0).unwrap(), 192534_i64)
             .unwrap()
     );
     assert_eq!(
@@ -2174,10 +2171,7 @@ pub fn i64_bitwise_ctz() {
     assert_eq!(
         1_i64,
         instance
-            .invoke(
-                &instance.get_function_by_index(0, 0).unwrap(),
-                192534_i64
-            )
+            .invoke(&instance.get_function_by_index(0, 0).unwrap(), 192534_i64)
             .unwrap()
     );
     assert_eq!(
@@ -2226,10 +2220,7 @@ pub fn i64_bitwise_popcnt() {
     assert_eq!(
         8_i64,
         instance
-            .invoke(
-                &instance.get_function_by_index(0, 0).unwrap(),
-                192534_i64
-            )
+            .invoke(&instance.get_function_by_index(0, 0).unwrap(), 192534_i64)
             .unwrap()
     );
     assert_eq!(

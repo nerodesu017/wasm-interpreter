@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 
 use super::RefType;
 
-
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct ElemType {

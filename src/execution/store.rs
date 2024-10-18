@@ -19,7 +19,7 @@ pub struct Store {
     pub tables: Vec<TableInst>,
     pub mems: Vec<MemInst>,
     pub globals: Vec<GlobalInst>,
-    pub data: Vec<DataSegment>
+    pub data: Vec<DataSegment>,
 }
 
 pub struct FuncInst {

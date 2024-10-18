@@ -42,7 +42,7 @@ impl Debug for DataSegment {
     }
 }
 
-/// 
+///
 ///  Usually, we'd have something like this:
 /// ```wasm
 /// (module
@@ -52,7 +52,7 @@ impl Debug for DataSegment {
 /// )
 /// ```
 
-/// 
+///
 /// Since the span has only the start and length and acts a reference, we print the start and end (both inclusive, notice the '..=')
 /// We print it in both decimal and hexadecimal so it's easy to trace in something like <https://webassembly.github.io/wabt/demo/wat2wasm/>
 impl Debug for DataMode {
@@ -64,7 +64,10 @@ impl Debug for DataMode {
                 let to = active_data_mode.offset.from + active_data_mode.offset.len() - 1;
                 f.debug_struct("Active")
                     // .field("offset", format_args!("[{}..={}]", from, to))
-                    .field("offset", &format_args!("[{}..={}] (hex = [{:X}..={:X}])", from, to, from, to))
+                    .field(
+                        "offset",
+                        &format_args!("[{}..={}] (hex = [{:X}..={:X}])", from, to, from, to),
+                    )
                     .finish()
                 // f.
             }

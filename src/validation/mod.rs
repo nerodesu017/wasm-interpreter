@@ -72,7 +72,6 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             custom      ::= name byte^*
              */
 
-
             // trace!("Custom section length: {}", h.contents.len());
             // let initial_pc = wasm.pc;
             // let remaining_bytes = wasm.remaining_bytes().len();
@@ -276,7 +275,15 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     let func_blocks = handle_section(&mut wasm, &mut header, SectionTy::Code, |wasm, h| {
-        code::validate_code_section(wasm, h, &types, &functions, &globals, &memories, &data_count)
+        code::validate_code_section(
+            wasm,
+            h,
+            &types,
+            &functions,
+            &globals,
+            &memories,
+            &data_count,
+        )
     })?
     .unwrap_or_default();
 
@@ -293,9 +300,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                 0 => {
                     // active { memory 0, offset e }
                     trace!("Data section: active");
-                    let offset = {
-                        read_constant_expression(wasm).unwrap()
-                    };
+                    let offset = { read_constant_expression(wasm).unwrap() };
                     trace!("{:?}", offset);
 
                     let value = {
@@ -310,11 +315,9 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                         }
                         value.unwrap()
                     };
-                    
+
                     let val: u32 = match value {
-                        Value::I32(val) => {
-                            val
-                        }
+                        Value::I32(val) => val,
                         Value::I64(val) => {
                             if val > u32::MAX as u64 {
                                 panic!("i64 value for data segment offset is out of reach")
@@ -322,21 +325,23 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                             val as u32
                         }
                         // TODO: implement all value types
-                        _ => unimplemented!()
+                        _ => unimplemented!(),
                     };
 
                     let byte_vec = wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap();
 
                     let memory = memories.first().unwrap();
 
-                    let max_bytes = if memory.limits.max.is_some() && memory.limits.max.unwrap() != Limits::MAX_PAGES {
+                    let max_bytes = if memory.limits.max.is_some()
+                        && memory.limits.max.unwrap() != Limits::MAX_PAGES
+                    {
                         memory.limits.max.unwrap() * Limits::PAGE_SIZE
                     } else {
                         Limits::MAX_BYTES
                     };
 
                     if byte_vec.len() + val as usize > max_bytes as usize {
-                        panic!("Out of bounds");   
+                        panic!("Out of bounds");
                     }
 
                     DataSegment {
