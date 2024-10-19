@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */
-// use hexf::hexf32;
+use hexf::hexf32;
 use wasm::{validate, RuntimeInstance};
 
 macro_rules! get_func {
@@ -93,8 +93,13 @@ fn memory_redundancy() {
     assert_result!(i, get_func!(i, "test_store_to_load"), (), 0x00000080);
     i.invoke::<(), ()>(zero_everything, ()).unwrap();
     assert_result!(i, get_func!(i, "test_redundant_load"), (), 0x00000080);
-    // i.invoke::<(), ()>(zero_everything, ()).unwrap();
-    // assert_result!(i, get_func!(i, "test_dead_store"), (), hexf32!("0x1.18p-144"));
-    // i.invoke::<(), ()>(zero_everything, ()).unwrap();
-    // assert_result!(i, get_func!(i, "malloc_aliasing"), (), 43);
+    i.invoke::<(), ()>(zero_everything, ()).unwrap();
+    assert_result!(
+        i,
+        get_func!(i, "test_dead_store"),
+        (),
+        hexf32!("0x1.18p-144")
+    );
+    i.invoke::<(), ()>(zero_everything, ()).unwrap();
+    assert_result!(i, get_func!(i, "malloc_aliasing"), (), 43);
 }

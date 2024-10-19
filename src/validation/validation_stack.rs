@@ -39,7 +39,7 @@ impl ValidationStack {
             let popped = popped.unwrap();
 
             return match popped {
-                ValidationStackEntry::Val(_) => Ok(()),
+                ValidationStackEntry::UnspecifiedValTypes | ValidationStackEntry::Val(_) => Ok(()),
                 _ => Err(Error::ExpectedAnOperand),
             };
         }
