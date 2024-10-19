@@ -26,7 +26,7 @@ pub fn validate_code_section(
         let ty_idx = type_idx_of_fn[idx];
         let func_ty = fn_types[ty_idx].clone();
 
-        debug!("{:x?}", wasm.full_wasm_binary);
+        // debug!("{:x?}", wasm.full_wasm_binary);
 
         let func_size = wasm.read_var_u32()?;
         let func_block = wasm.make_span(func_size as usize)?;
@@ -842,7 +842,8 @@ fn read_instructions(
                         let data_idx = wasm.read_var_u32()? as DataIdx;
                         assert!(
                             data_count.unwrap() as usize > data_idx,
-                            "data_idx is out of bounds"
+                            "data_idx {} is out of bounds",
+                            data_idx
                         );
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
