@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::iter;
 
-use crate::core::indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx};
+use crate::core::indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
 use crate::core::reader::types::global::Global;
@@ -113,6 +113,7 @@ fn read_instructions(
             NOP => {}
             // end
             END => {
+                trace!("Validation: END");
                 // TODO check if there are labels on the stack.
                 // If there are none (i.e. this is the implicit end of the function and not a jump to the end of a function), the stack must only contain the valid return values, no other junk.
                 //
@@ -140,7 +141,7 @@ fn read_instructions(
                     // }
                 } else {
                     // This is the last end of a function
-
+                    
                     // The stack must only contain the function's return valtypes
                     let this_func_ty = &fn_types[type_idx_of_fn[this_function_idx]];
                     stack.assert_val_types(&this_func_ty.returns.valtypes)?;
@@ -155,6 +156,8 @@ fn read_instructions(
                     .map_err(|_| Error::EndInvalidValueStack)?;
 
                 stack.make_unspecified();
+
+                trace!("Validation: RETURN");
 
                 // TODO(george-cosma): a `return Ok(());` should probably be introduced here, but since we don't have
                 // controls flows implemented, the only way to test `return` is to place it at the end of function.
@@ -185,7 +188,10 @@ fn read_instructions(
             }
             // unreachable: [t1*] -> [t2*]
             UNREACHABLE => {
+                // trap
+                panic!("WTF");
                 stack.make_unspecified();
+                trace!("Validation: UNREACHABLE");
             }
             DROP => {
                 let el = stack.drop_val();
@@ -597,16 +603,32 @@ fn read_instructions(
                 stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
             }
             MEMORY_SIZE => {
+                let mem_idx = 
+                    // if multi_memory_is_enabled {
+                    //     wasm.read_var_u32()? as MemIdx
+                    // } else {
+                        wasm.read_u8()? as MemIdx
+                    // }
+                    ;
                 assert!(
-                    !memories.is_empty(),
-                    "C.mems[0] is NOT defined when it should be"
+                    memories.len() > mem_idx,
+                    "C.mems[{}] is NOT defined when it should be",
+                    mem_idx
                 );
                 stack.push_valtype(ValType::NumType(NumType::I32));
             }
             MEMORY_GROW => {
+                let mem_idx = 
+                // if multi_memory_is_enabled {
+                //     wasm.read_var_u32()? as MemIdx
+                // } else {
+                    wasm.read_u8()? as MemIdx
+                // }
+                ;
                 assert!(
-                    !memories.is_empty(),
-                    "C.mems[0] is NOT defined when it should be"
+                    memories.len() > mem_idx,
+                    "C.mems[{}] is NOT defined when it should be",
+                    mem_idx
                 );
                 stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                 stack.push_valtype(ValType::NumType(NumType::I32));
@@ -834,12 +856,20 @@ fn read_instructions(
                         stack.push_valtype(ValType::NumType(NumType::I64));
                     }
                     MEMORY_INIT => {
+                        let data_idx = wasm.read_var_u32()? as DataIdx;
+                        let mem_idx = 
+                        // if multi_memory_is_enabled {
+                        //     wasm.read_var_u32()? as MemIdx
+                        // } else {
+                        wasm.read_u8()? as MemIdx
+                        // }
+                        ;
                         assert!(
-                            !memories.is_empty(),
-                            "C.mems[0] is NOT defined when it should be"
+                            memories.len() > mem_idx,
+                            "C.mems[{}] is NOT defined when it should be",
+                            mem_idx
                         );
                         assert!(data_count.is_some(), "data count is none");
-                        let data_idx = wasm.read_var_u32()? as DataIdx;
                         assert!(
                             data_count.unwrap() as usize > data_idx,
                             "data_idx {} is out of bounds",
@@ -858,6 +888,14 @@ fn read_instructions(
                         );
                     }
                     MEMORY_COPY => {
+                        let (dst, src) = 
+                        // if multi_memory_is_enabled {
+                            // (wasm.read_var_u32()? as usize, wasm.read_var_u32()? as usize)
+                        // } else {
+                            (wasm.read_u8()? as usize, wasm.read_u8()? as usize)
+                        // }
+                        ;
+                        assert!(dst == 0 && src == 0);
                         assert!(
                             !memories.is_empty(),
                             "C.mems[0] is NOT defined when it should be"
@@ -867,9 +905,17 @@ fn read_instructions(
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                     }
                     MEMORY_FILL => {
+                        let mem_idx = 
+                        // if multi_memory_is_enabled {
+                        //     wasm.read_var_u32()? as MemIdx
+                        // } else {
+                            wasm.read_u8()? as MemIdx
+                        // }
+                        ;
                         assert!(
-                            !memories.is_empty(),
-                            "C.mems[0] is NOT defined when it should be"
+                            memories.len() > mem_idx,
+                            "C.mems[{}] is NOT defined when it should be",
+                            mem_idx
                         );
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;

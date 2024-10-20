@@ -362,7 +362,9 @@ where
             .data
             .iter()
             .map(|d| {
-                if let crate::core::reader::types::data::DataMode::Active(active_data) = d.mode.clone() {
+                if let crate::core::reader::types::data::DataMode::Active(active_data) =
+                    d.mode.clone()
+                {
                     let mem_idx = active_data.memory_idx as usize;
                     if mem_idx != 0 {
                         panic!("Active data has memory_idx different than 0");

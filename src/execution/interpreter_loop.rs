@@ -709,13 +709,27 @@ pub(super) fn run<H: HookSet>(
                 trace!("Instruction: i64.store32 [{relative_address} {data_to_store}] -> []");
             }
             MEMORY_SIZE => {
-                let mem = store.mems.first().unwrap_validated();
+                let mem_idx = 
+                // if multi_memory_is_enabled {
+                //     wasm.read_var_u32().unwrap_validated() as usize
+                // } else {
+                    wasm.read_u8().unwrap_validated() as usize
+                // }
+                ;
+                let mem = store.mems.get(mem_idx).unwrap_validated();
                 let size = mem.size() as u32;
                 stack.push_value(Value::I32(size));
                 trace!("Instruction: memory.size [] -> [{}]", size);
             }
             MEMORY_GROW => {
-                let mem = store.mems.get_mut(0).unwrap_validated();
+                let mem_idx = 
+                // if multi_memory_is_enabled {
+                //     wasm.read_var_u32().unwrap_validated() as usize
+                // } else {
+                    wasm.read_u8().unwrap_validated() as usize
+                // }
+                ;
+                let mem = store.mems.get_mut(mem_idx).unwrap_validated();
                 let delta: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                 let upper_limit = if mem.ty.limits.max.is_some() {
@@ -2028,9 +2042,16 @@ pub(super) fn run<H: HookSet>(
                         stack.push_value(res.into());
                     }
                     MEMORY_INIT => {
-                        let mem = unsafe { store.mems.get_unchecked_mut(0) };
                         let data_idx = wasm.read_var_u32().unwrap_validated() as DataIdx;
                         let data = unsafe { store.data.get_unchecked_mut(data_idx) };
+                        let mem_idx = 
+                        // if multi_memory_is_enabled {
+                        //     wasm.read_var_u32().unwrap_validated() as usize
+                        // } else {
+                            wasm.read_u8().unwrap_validated() as usize
+                        // }
+                        ;
+                        let mem = store.mems.get(mem_idx).unwrap_validated();
                         let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -2093,6 +2114,13 @@ pub(super) fn run<H: HookSet>(
                         };
                     }
                     MEMORY_COPY => {
+                        let (_dst, _src) = 
+                        // if multi_memory_is_enabled {
+                            // (wasm.read_var_u32().unwrap_validated() as usize, wasm.read_var_u32().unwrap_validated() as usize)
+                        // } else {
+                            (wasm.read_u8().unwrap_validated() as usize, wasm.read_u8().unwrap_validated())
+                        // }
+                        ;
                         let mem = unsafe { store.mems.get_unchecked_mut(0) };
                         let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -2183,7 +2211,14 @@ pub(super) fn run<H: HookSet>(
                         trace!("Instruction: memory.copy");
                     }
                     MEMORY_FILL => {
-                        let mem = unsafe { store.mems.get_unchecked_mut(0) };
+                        let mem_idx = 
+                        // if multi_memory_is_enabled {
+                        //     wasm.read_var_u32().unwrap_validated() as usize
+                        // } else {
+                            wasm.read_u8().unwrap_validated() as usize
+                        // }
+                        ;
+                        let mem = store.mems.get(mem_idx).unwrap_validated();
                         let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let val: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -2228,7 +2263,7 @@ pub(super) fn run<H: HookSet>(
                             n -= 1;
                         }
 
-                        trace!("Instruction: memory.copy");
+                        trace!("Instruction: memory.fill");
                     }
                     _ => unreachable!(),
                 }
