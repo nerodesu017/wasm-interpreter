@@ -157,8 +157,6 @@ fn read_instructions(
 
                 stack.make_unspecified();
 
-                trace!("Validation: RETURN");
-
                 // TODO(george-cosma): a `return Ok(());` should probably be introduced here, but since we don't have
                 // controls flows implemented, the only way to test `return` is to place it at the end of function.
                 // However, an `end` is introduced after it, which is invalid. Compilation for this test case should
@@ -189,9 +187,7 @@ fn read_instructions(
             // unreachable: [t1*] -> [t2*]
             UNREACHABLE => {
                 // trap
-                panic!("WTF");
                 stack.make_unspecified();
-                trace!("Validation: UNREACHABLE");
             }
             DROP => {
                 let el = stack.drop_val();

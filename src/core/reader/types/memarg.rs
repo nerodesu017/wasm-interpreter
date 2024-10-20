@@ -24,7 +24,7 @@ impl WasmReadable for MemArg {
         let align = if flags >= (1 << 6) {
                 panic!("malformed memop alignment: alignment too large")
             } else {
-                flags as u32
+                flags
             };
         let offset = wasm.read_var_u32()?;
         Ok(Self { offset, align })
