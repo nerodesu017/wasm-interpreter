@@ -11,21 +11,7 @@ pub struct MemArg {
 
 impl WasmReadable for MemArg {
     fn read(wasm: &mut WasmReader) -> crate::Result<Self> {
-        let /* mut  */flags = wasm.read_var_u32()?;
-
-        // let mem = 
-        //     // if multi_memory_is_enabled  && flags & (1 << 6) != 0 {
-        //     //     flags ^= 1 << 6;
-        //     //     wasm.read_var_u32()?
-        //     // } else {
-        //         0
-        //     // }
-        //     ;
-        let align = if flags >= (1 << 6) {
-                panic!("malformed memop alignment: alignment too large")
-            } else {
-                flags
-            };
+        let align = wasm.read_var_u32()?;
         let offset = wasm.read_var_u32()?;
         Ok(Self { offset, align })
     }

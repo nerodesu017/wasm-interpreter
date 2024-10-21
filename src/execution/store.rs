@@ -41,10 +41,10 @@ pub struct MemInst {
 }
 
 impl MemInst {
-    pub const PAGE_SIZE: usize = 1 << 16;
-    pub const MAX_PAGES: usize = 1 << 16;
+    // pub const PAGE_SIZE: usize = 1 << 16;
+    // pub const MAX_PAGES: usize = 1 << 16;
     pub fn new(ty: MemType) -> Self {
-        let initial_size = Self::PAGE_SIZE * ty.limits.min as usize;
+        let initial_size = (crate::Limits::MEM_PAGE_SIZE as usize) * ty.limits.min as usize;
 
         Self {
             ty,
@@ -54,12 +54,12 @@ impl MemInst {
 
     pub fn grow(&mut self, delta_pages: usize) {
         self.data
-            .extend(iter::repeat(0).take(delta_pages * Self::PAGE_SIZE))
+            .extend(iter::repeat(0).take(delta_pages * (crate::Limits::MEM_PAGE_SIZE as usize)))
     }
 
     /// Can never be bigger than 65,356 pages
     pub fn size(&self) -> usize {
-        self.data.len() / Self::PAGE_SIZE
+        self.data.len() / (crate::Limits::MEM_PAGE_SIZE as usize)
     }
 }
 

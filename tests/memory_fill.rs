@@ -16,3 +16,8 @@
 */
 
 // we need control flow implemented for any of these tests
+#[ignore = "not yet implemented"]
+#[test_log::test]
+fn memory_fill() {
+    assert!(1 == 2);
+}

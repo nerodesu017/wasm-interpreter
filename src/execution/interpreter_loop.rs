@@ -13,19 +13,13 @@
 use alloc::vec::Vec;
 
 use crate::{
-    assert_validated::UnwrapValidatedExt,
-    core::{
+    assert_validated::UnwrapValidatedExt, core::{
         indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx},
         reader::{
             types::{data::DataSegment, memarg::MemArg, FuncType},
             WasmReadable, WasmReader,
         },
-    },
-    locals::Locals,
-    store::{MemInst, Store},
-    value,
-    value_stack::Stack,
-    NumType, RuntimeError, ValType, Value,
+    }, locals::Locals, store::Store, value, value_stack::Stack, Limits, NumType, RuntimeError, ValType, Value
 };
 
 #[cfg(feature = "hooks")]
@@ -735,7 +729,7 @@ pub(super) fn run<H: HookSet>(
                 let upper_limit = if mem.ty.limits.max.is_some() {
                     mem.ty.limits.max.unwrap()
                 } else {
-                    MemInst::MAX_PAGES as u32
+                    Limits::MAX_MEM_PAGES
                 };
                 let pushed_value = if delta < 0 || delta as u32 + mem.size() as u32 > upper_limit {
                     stack.push_value((-1).into());

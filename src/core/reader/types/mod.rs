@@ -209,9 +209,15 @@ pub struct Limits {
 }
 
 impl Limits {
-    pub const MAX_PAGES: u32 = 1 << 16;
-    pub const MAX_BYTES: u32 = u32::MAX;
-    pub const PAGE_SIZE: u32 = 1 << 16;
+    // since the maximum amount of bytes is u32::MAX, the page size is 1 << 16
+    // the max no. of pages = max bytes / page size = u32::MAX / (1 << 16) = 1 << 16
+    pub const MAX_MEM_PAGES: u32 = 1 << 16;
+    // https://webassembly.github.io/reference-types/core/syntax/types.html#limits
+    // memtype is defined in terms of limits, which go from 0 to u32::MAX
+    pub const MAX_MEM_BYTES: u32 = u32::MAX;
+    // https://webassembly.github.io/reference-types/core/exec/runtime.html#memory-instances
+    // memory size is 65536 (1 << 16)
+    pub const MEM_PAGE_SIZE: u32 = 1 << 16;
 }
 
 impl Debug for Limits {

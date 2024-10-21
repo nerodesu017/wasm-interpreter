@@ -34,17 +34,10 @@ impl ValidationStack {
 
     /// Similar to [`ValidationStack::pop`], but more public and returns a Result<()>
     pub(super) fn drop_val(&mut self) -> Result<()> {
-        let popped = self.stack.pop();
-        if popped.is_some() {
-            let popped = popped.unwrap();
-
-            return match popped {
-                ValidationStackEntry::UnspecifiedValTypes | ValidationStackEntry::Val(_) => Ok(()),
-                _ => Err(Error::ExpectedAnOperand),
-            };
+        match self.stack.pop().ok_or(Error::EndInvalidValueStack)? {
+            ValidationStackEntry::Val(_) => Ok(()),
+            _ => Err(Error::ExpectedAnOperand),
         }
-
-        Err(Error::EndInvalidValueStack)
     }
 
     /// This puts an unspecified element on top of the stack.

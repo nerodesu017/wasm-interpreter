@@ -253,20 +253,13 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         })?;
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
-    // let data_count: Option<u32> = handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, h| {
-    //     if h.contents.len() > 0 {
-    //         let data_count = wasm.read_var_u32().unwrap();
-    //         trace!("Data count: {}", data_count);
-    //         Ok(Some(data_count))
-    //     } else {
-    //         Ok(None)
-    //     }
-    // })?.unwrap();
-
+    // https://webassembly.github.io/spec/core/binary/modules.html#data-count-section
+    // As per the official documentation:
+    // 
+    // The data count section is used to simplify single-pass validation. Since the data section occurs after the code section, the `memory.init` and `data.drop` and instructions would not be able to check whether the data segment index is valid until the data section is read. The data count section occurs before the code section, so a single-pass validator can use this count instead of deferring validation.
     let data_count: Option<u32> =
         handle_section(&mut wasm, &mut header, SectionTy::DataCount, |wasm, _| {
             wasm.read_var_u32()
-            // todo!("data count section not yet supported")
         })?;
     if data_count.is_some() {
         trace!("data count: {}", data_count.unwrap());
@@ -333,11 +326,11 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                     let memory = memories.first().unwrap();
 
                     let max_bytes = if memory.limits.max.is_some()
-                        && memory.limits.max.unwrap() != Limits::MAX_PAGES
+                        && memory.limits.max.unwrap() != Limits::MAX_MEM_PAGES
                     {
-                        memory.limits.max.unwrap() * Limits::PAGE_SIZE
+                        memory.limits.max.unwrap() * Limits::MEM_PAGE_SIZE
                     } else {
-                        Limits::MAX_BYTES
+                        Limits::MAX_MEM_BYTES
                     };
 
                     if byte_vec.len() + val as usize > max_bytes as usize {
