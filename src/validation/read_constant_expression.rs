@@ -135,6 +135,7 @@ pub fn read_constant_instructions(
             }
             REF_FUNC => {
                 wasm.read_var_u32().unwrap();
+                stack.push_valtype(ValType::RefType(crate::RefType::FuncRef));
             }
             _ => return Err(Error::InvalidInstr(first_instr_byte)),
         }

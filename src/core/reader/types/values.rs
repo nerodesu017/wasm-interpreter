@@ -136,6 +136,7 @@ impl WasmReader<'_> {
         F: FnMut(&mut WasmReader) -> Result<T>,
     {
         let len = self.read_var_u32()?;
+        trace!("Reading a vector of {} elements", len);
         (0..len).map(|_| read_element(self)).collect()
     }
 }

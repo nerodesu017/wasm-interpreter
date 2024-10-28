@@ -1,3 +1,4 @@
+use alloc::collections::*;
 use alloc::vec::Vec;
 use read_constant_expression::read_constant_instructions;
 
@@ -5,6 +6,7 @@ use crate::core::indices::{FuncIdx, TypeIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
 use crate::core::reader::types::data::{DataMode, DataModeActive, DataSegment};
+use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::export::Export;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::import::Import;
@@ -35,6 +37,7 @@ pub struct ValidationInfo<'bytecode> {
     pub(crate) data: Vec<DataSegment>,
     /// The start function which is automatically executed during instantiation
     pub(crate) start: Option<FuncIdx>,
+    pub(crate) elements: Vec<ElemType>,
 }
 
 pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
@@ -162,94 +165,101 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
-    // #region element
-    // let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
-    //     let mut elem_vec: Vec<()> = Vec::new();
-    //     // https://webassembly.github.io/spec/core/binary/modules.html#element-section
-    //      // TODO: replace with wasm.read_vec in the future
-    //      let vec_length = wasm.read_var_u32().unwrap();
-    //      trace!("Element sections no.: {}", vec_length);
-    //      for i in 0..vec_length {
-    //         let ttype = wasm.read_var_u32().unwrap();
-    //         // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
-    //         // https://webassembly.github.io/spec/core/binary/modules.html#element-section
-    //         // We can treat the ttype as a 3bit integer
-    //         // If it's not 3 bits I am not sure what to do
-    //         // bit 0 => diff between passive|declartive and active segment
-    //         // bit 1 => presence of an explicit table index for an active segment
-    //         // bit 2 => use of element type and element expressions instead of element kind and element indices
-    //         if (ttype & 0b111) > 0b111 {
-    //             // what should we do?
-    //             // error or is fine?
-    //             // should be unspecified
-    //         }
-    //         // decide if we should
-    //         // let elem_mode = if ttype & 0b001 == 0b001 {
-    //         //     // passive or declarative
-    //         //     if ttype & 0b010 == 0b010 {
-    //         //         ElemMode::Declarative
-    //         //     } else {
-    //         //         ElemMode::Passive
-    //         //     }
-    //         // } else {
-    //         //     if ttype & 0b010 == 0b010 {
-    //         //         let table_idx = wasm.read_var_u32().unwrap();
-    //         //         let bytes = Vec::new();
-    //         //         bytes.push(wasm.read_var_u32().unwrap());
-    //         //         while bytes.last().unwrap() != END {
-    //         //             bytes.push(wasm.read_var_u32().unwrap());
-    //         //         }
-    //         //         ElemMode::Active(ActiveElem {
-    //         //             table: table_idx,
-    //         //             offset: bytes
-    //         //         })
-    //         //     } else {
-    //         //     }
-    //         // }
-    //         match ttype {
-    //             0 => {
-    //                 let expr = {
-    //                     // TODO: actually verify this expression
-    //                     let mut const_expr = read_constant_expression(wasm).unwrap();
-    //                 };
-    //                 let func_idxs: Vec<u32> = wasm.read_vec(|w| {
-    //                     w.read_var_u32()
-    //                 }).unwrap();
-    //                 // type funcref
-    //             }
-    //             1 => {
-    //                 // type elemkind
-    //             }
-    //             2 => {
-    //                 // type elemkind
-    //             }
-    //             3 => {
-    //                 // type elemkind
-    //             }
-    //             4 => {
-    //                 // type funcref
-    //             }
-    //             5 => {
-    //                 // type reftype
-    //             }
-    //             6 => {
-    //                 // type reftype
-    //             }
-    //             7 => {
-    //                 // type reftype
-    //             }
-    //             _ => unimplemented!()
-    //         }
-    //      }
-    //     todo!("element section not yet supported")
-    // })?;
-    // #endregion
+    let mut referenced_functions = btree_set::BTreeSet::new();
+    let elements: Vec<ElemType> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
+        use crate::core::reader::types::element::*;
+        use crate::RefType;
+        let mut elem_vec: Vec<ElemType> = Vec::new();
+        // https://webassembly.github.io/spec/core/binary/modules.html#element-section
+        // TODO: replace with wasm.read_vec in the future
+        let vec_length = wasm.read_var_u32().unwrap();
+        trace!("Element sections no.: {}", vec_length);
+        for i in 0..vec_length {
+            let ty = wasm.read_var_u32().unwrap();
+            // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
+            // https://webassembly.github.io/spec/core/binary/modules.html#element-section
+            // We can treat the ttype as a 3bit integer
+            // If it's not 3 bits I am not sure what to do
+            // bit 0 => diff between passive|declartive and active segment
+            // bit 1 => presence of an explicit table index for an active segment
+            // bit 2 => use of element type and element expressions instead of element kind and element indices
+            assert!(ty <= 0b111, "Element section is not encoded correctly. The type of this element is over 7 (0b111)");
+            // decide if we should
+            let elem_mode = if ty & 0b001 == 0b001 {
+                if ty & 0b010 == 0b010 {
+                    ElemMode::Declarative
+                } else {
+                    ElemMode::Passive
+                }
+            } else {
+                let table_idx = if ty & 0b010 == 0b010 {
+                    wasm.read_var_u32()?
+                } else {
+                    0
+                };
+                if tables.len() <= table_idx as usize {
+                    return Err(Error::UnknownTable);
+                }
+                let expr = read_constant_expression::read_constant_instructions(wasm, None, None)?;
 
-    let _element: Option<()> =
-        handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
-            todo!("element section not yet supported")
-        })?;
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
+                ElemMode::Active(ActiveElem {
+                    table: table_idx,
+                    offset: expr,
+                })
+            };
+            let use_of_el_ty_and_el_exprs = ty & 0b100 == 0b100;
+
+            let reftype_or_elemkind: Option<RefType> = match if ty & 0b011 != 0 {
+                if use_of_el_ty_and_el_exprs {
+                    Some(wasm.read_u8()?)
+                } else {
+                    let read = wasm.read_u8()?;
+                    match read {
+                        0x00 => None,
+                        _ => panic!("Only FuncRefs are allowed"),
+                    }
+                }
+            } else {
+                None
+            } {
+                None => None,
+                Some(ty) => Some(RefType::from_byte(ty)?),
+            };
+
+            match reftype_or_elemkind {
+                Some(rty) => trace!("REFTYPE: {}", rty),
+                None => {trace!("REFTYPE NONE!")}
+            };
+
+            let items: ElemItems = if use_of_el_ty_and_el_exprs {
+                ElemItems::Exprs(
+                    reftype_or_elemkind.unwrap_or(RefType::FuncRef),
+                    wasm.read_vec(|w| read_constant_instructions(w, None, None))?,
+                )
+            } else {
+                assert!(reftype_or_elemkind.is_none());
+                ElemItems::RefFuncs(wasm.read_vec(|w| {
+                    let offset = w.read_var_u32()?;
+                    referenced_functions.insert(offset);
+                    Ok(offset)
+                })?)
+            };
+
+            let el = ElemType {init: items, mode: elem_mode};
+            trace!("Element {}: {:?}", i+1, el);
+
+            elem_vec.push(el);
+        }
+
+        Ok(elem_vec)
+        // todo!("element section not yet supported")
+    })?.unwrap_or_default();
+
+    // let _element: Option<()> =
+    //     handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
+    //         todo!("element section not yet supported")
+    //     })?;
+    // while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     // https://webassembly.github.io/spec/core/binary/modules.html#data-count-section
     // As per the official documentation:
@@ -274,6 +284,9 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             &globals,
             &memories,
             &data_count,
+            &tables,
+            &elements,
+            &referenced_functions,
         )
     })?
     .unwrap_or_default();
@@ -347,6 +360,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     }
 
     debug!("Validation was successful");
+
     Ok(ValidationInfo {
         wasm: wasm.into_inner(),
         types,
@@ -359,6 +373,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         func_blocks,
         data: data_section,
         start,
+        elements,
     })
 }
 
