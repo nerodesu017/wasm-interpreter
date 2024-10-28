@@ -3,7 +3,7 @@
 //! See: <https://webassembly.github.io/spec/core/binary/types.html>
 
 use alloc::vec::Vec;
-use core::fmt::{Debug, Formatter};
+use core::fmt::{Debug, Display, Formatter};
 
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::execution::assert_validated::UnwrapValidatedExt;
@@ -88,6 +88,16 @@ pub enum RefType {
     ExternRef
 }
 
+impl Display for RefType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", match self {
+            Self::ExternRef => "ExternRef",
+            Self::FuncRef => "FuncRef",
+            Self::None(rref) => format_args!("{}(NULL)", rref).as_str().unwrap()
+        })
+    }
+}
+
 impl RefType {
     pub fn to_actual_ref_type(&self) -> ActualRefType {
         match self {
@@ -110,6 +120,15 @@ impl RefType {
 pub enum ActualRefType {
     FuncRef,
     ExternRef
+}
+
+impl Display for ActualRefType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", match self {
+            ActualRefType::ExternRef => "ExternRef",
+            ActualRefType::FuncRef => "FuncRef"
+        })
+    }
 }
 
 impl ActualRefType {
@@ -335,6 +354,8 @@ impl WasmReadable for TableType {
     fn read(wasm: &mut WasmReader) -> Result<Self> {
         let et = RefType::read(wasm)?;
         let lim = Limits::read(wasm)?;
+        let table_type = Self {et, lim};
+        trace!("Table: {:?}", table_type);
         Ok(Self { et, lim })
     }
 

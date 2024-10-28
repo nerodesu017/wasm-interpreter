@@ -5,9 +5,10 @@ use core::iter;
 use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
+use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::memarg::MemArg;
-use crate::core::reader::types::{FuncType, MemType, NumType, ValType};
+use crate::core::reader::types::{FuncType, MemType, NumType, TableType, ValType};
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::validation_stack::ValidationStack;
 use crate::{Error, RefType, Result};
@@ -20,6 +21,8 @@ pub fn validate_code_section(
     globals: &[Global],
     memories: &[MemType],
     data_count: &Option<u32>,
+    tables: &[TableType],
+    elements: &[ElemType]
 ) -> Result<Vec<Span>> {
     assert_eq!(section_header.ty, SectionTy::Code);
 
@@ -51,6 +54,8 @@ pub fn validate_code_section(
             type_idx_of_fn,
             memories,
             data_count,
+            tables,
+            elements
         )?;
 
         // Check if there were unread trailing instructions after the last END
@@ -99,6 +104,8 @@ fn read_instructions(
     type_idx_of_fn: &[usize],
     memories: &[MemType],
     data_count: &Option<u32>,
+    tables: &[TableType],
+    elements: &[ElemType]
 ) -> Result<()> {
     // TODO we must terminate only if both we saw the final `end` and when we consumed all of the code span
     loop {
@@ -801,22 +808,25 @@ fn read_instructions(
                         let elem_idx = wasm.read_var_u32()? as ElemIdx;
                         let table_idx = wasm.read_var_u32()? as TableIdx;
 
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
 
+                        let t1 = tables[table_idx].et.clone();
                         
-                        /*
-                            let table = self.table_type_at(table)?;
-                            let segment_ty = self.element_type_at(segment)?;
-                            if !self
-                                .resources
-                                .is_subtype(ValType::Ref(segment_ty), ValType::Ref(table.element_type))
-                            {
-                                bail!(self.offset, "type mismatch");
-                            }
-                            self.pop_operand(Some(ValType::I32))?;
-                            self.pop_operand(Some(ValType::I32))?;
-                            self.pop_operand(Some(table.index_type()))?;
-                            Ok(())
-                         */
+                        if elements.len() <= elem_idx {
+                            return Err(Error::ElementIsNotDefined(elem_idx));
+                        }
+
+                        let t2 = elements[elem_idx].to_ref_type();
+                        
+                        if t1 != t2 {
+                            return Err(Error::DifferentRefTypes(t1, t2));
+                        }
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        // INFO: wasmtime checks for this value to be an index in the tables array, interesting
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                     }
                     _ => {
                         return Err(Error::InvalidMultiByteInstr(

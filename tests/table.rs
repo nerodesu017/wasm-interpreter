@@ -118,6 +118,40 @@ fn table_size_minimum_must_not_be_greater_than_maximum() {
     });
 }
 
+
+#[test_log::test]
+fn table_elem_test() {
+    let w = r#"
+    (module
+        (table 2 funcref)
+        (elem (i32.const 0) $f1 $f3)
+        (func $f1 (result i32)
+            i32.const 42)
+        (func $f2 (result i32)
+            i32.const 13)
+        (func $f3 (result i64)
+            i64.const 13)
+        (func $f4 (result i32)
+            i32.const 13)
+    )"#;
+    let wasm_bytes = wat::parse_str(w).unwrap();
+    let validation_info = validate(&wasm_bytes).unwrap();
+    let instance = RuntimeInstance::new(&validation_info).expect("instantiation failed");
+    let table = instance.store.tables.get(0).unwrap();
+    assert!(table.len() == 2);
+    let wanted: [usize; 2] = [0,2];
+    table.elem.iter().enumerate().for_each(|(i,rref)| {
+        match *rref {
+            wasm::value::Ref::Extern(_) => panic!(),
+            wasm::value::Ref::Func(func_addr) => {
+                assert!(func_addr.is_null == false);
+                assert!(wanted[i] == func_addr.addr)
+            }
+        }
+    });
+    // assert!(instance.store.tables)
+}
+
 // (assert_malformed
 //   (module quote "(table 0x1_0000_0000 funcref)")
 //   "i32 constant out of range"

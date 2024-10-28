@@ -5,9 +5,11 @@ use const_interpreter_loop::run_const;
 use function_ref::FunctionRef;
 use interpreter_loop::run;
 use locals::Locals;
-use store::{DataInst, TableInst};
+use store::{DataInst, ElemInst, TableInst};
+use value::{FuncAddr, Ref};
 use value_stack::Stack;
 
+use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::export::{Export, ExportDesc};
 use crate::core::reader::types::FuncType;
 use crate::core::reader::WasmReader;
@@ -17,7 +19,7 @@ use crate::execution::store::{FuncInst, GlobalInst, MemInst, Store};
 use crate::execution::value::Value;
 use crate::validation::code::read_declared_locals;
 use crate::value::InteropValueList;
-use crate::{RuntimeError, ValType, ValidationInfo};
+use crate::{Error, RuntimeError, ValType, ValidationInfo};
 
 // TODO
 pub(crate) mod assert_validated;
@@ -26,7 +28,7 @@ pub mod function_ref;
 pub mod hooks;
 mod interpreter_loop;
 pub(crate) mod locals;
-pub(crate) mod store;
+pub mod store;
 pub mod value;
 pub mod value_stack;
 
@@ -343,10 +345,108 @@ where
         };
 
         // https://webassembly.github.io/spec/core/exec/modules.html#tables
-        let tables: Vec<TableInst> = validation_info
+        let mut tables: Vec<TableInst> = validation_info
             .tables
             .iter()
             .map(|ty| TableInst::new(*ty))
+            .collect();
+
+        // let elements: Vec<ElemType> = validation_info
+        //     .elements
+        //     .iter()
+        //     .map(|el| (*el).clone())
+        //     .collect();
+
+            // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
+        let elements: Vec<ElemInst> = validation_info
+            .elements
+            .iter()
+            .map(|el| {
+                use crate::core::reader::types::element::*;
+                match el.mode.clone() {
+                    ElemMode::Passive => {
+                        // can be copied at runtime
+                        match el.ty() {
+                            crate::RefType::FuncRef => {
+                                ElemInst {
+                                    ty: el.ty(),
+                                    elem: match &el.init {
+                                        ElemItems::Exprs(_, _) => unreachable!(),
+                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))})
+                                    }.collect::<Vec<Ref>>()
+                                }
+                            }
+                            crate::RefType::ExternRef => unimplemented!(),
+                            crate::RefType::None(_) => unreachable!()
+                        }
+                    },
+                    ElemMode::Active(active_elem) => {
+                        // copies itself right now, when instantiating
+                        let table_idx = active_elem.table as usize;
+                        assert!(tables.len() > table_idx);
+                        // if tables.len() <= table_idx {
+                        //     return Err(Error::TableIsNotDefined(table_idx));
+                        // }
+
+                        let table = tables.get_mut(table_idx).unwrap_validated();
+
+                        let value = {
+                            let mut wasm = WasmReader::new(validation_info.wasm);
+                            wasm.move_start_to(active_elem.offset).unwrap_validated();
+                            let mut stack = Stack::new();
+                            // TODO: fully implement run_const
+                            run_const(wasm, &mut stack, ());
+                            let value = stack.peek_unknown_value();
+                            if value.is_none() {
+                                panic!("No value on the stack for element segment offset");
+                            }
+                            value.unwrap()
+                        };
+
+                        // TODO: this shouldn't be a simple value, should it? I mean it can't be, but it can also be any type of ValType
+                        // TODO: also, do we need to forcefully make it i32?
+                        let offset: u32 = match value {
+                            Value::I32(val) => val,
+                            Value::I64(val) => {
+                                if val > u32::MAX as u64 {
+                                    panic!("i64 value for data segment offset is out of reach")
+                                }
+                                val as u32
+                            }
+                            // INFO: no need to implement all of them, it's either i32 or i64, otherwise offset is WRONG
+                            // INFO2: wait, we might need globals handling, now that I think about it, but make it return an u32 anyways
+                            _ => unreachable!(),
+                        };
+                        let offset: usize = offset as usize;
+
+                        let el = match el.ty() {
+                            crate::RefType::FuncRef => {
+                                ElemInst {
+                                    ty: el.ty(),
+                                    elem: match &el.init {
+                                        ElemItems::Exprs(_, _) => unreachable!(),
+                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))})
+                                    }.collect::<Vec<Ref>>()
+                                }
+                            }
+                            crate::RefType::ExternRef => unimplemented!(),
+                            crate::RefType::None(_) => unreachable!()
+                        };
+
+                        trace!("table.len ({}) >= (offset ({}) + el.len ({}))", table.len(), offset, el.len());
+                        assert!(table.len() >= (offset + el.len()));
+
+                        el.elem.iter().enumerate().for_each(|(i, rref)| {
+                            table.elem[i + offset] = rref.clone();
+                        });
+
+                        el
+                    }
+                    ElemMode::Declarative => {
+                        unimplemented!()
+                    }
+                }
+            })
             .collect();
 
         let mut memory_instances: Vec<MemInst> = validation_info
@@ -438,7 +538,8 @@ where
             mems: memory_instances,
             globals: global_instances,
             data: data_sections,
-            tables
+            tables,
+            elements,
         }
     }
 }

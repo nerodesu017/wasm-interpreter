@@ -87,7 +87,7 @@ fn i32_load8_u_fun(
     // stack.push_value(Value::I32(data as u32));
     // Ok((relative_address, data))
     Ok(data as u32)
-}
+}   
 
 /// Interprets a functions. Parameters and return values are passed on the stack.
 pub(super) fn run<H: HookSet>(
@@ -2255,6 +2255,49 @@ pub(super) fn run<H: HookSet>(
                         }
 
                         trace!("Instruction: memory.fill");
+                    }
+                    // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-table-mathsf-table-init-x-y
+                    TABLE_INIT => {
+                        let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
+                        let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
+
+                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let elem = store.elements.get(elem_idx).unwrap_validated();
+
+                        let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                        if ( s + n ) as usize > elem.len() || ( d + n ) as usize > tab.len() {
+                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                        }
+
+                        // if n == 0 {
+                        //     return;
+                        // }
+
+                        // let val = elem.init
+
+                        unimplemented!();
+                        // if tables.len() <= table_idx {
+                        //     return Err(Error::TableIsNotDefined(table_idx));
+                        // }
+
+                        // let t1 = tables[table_idx].et.clone();
+                        
+                        // if elements.len() <= elem_idx {
+                        //     return Err(Error::ElementIsNotDefined(elem_idx));
+                        // }
+
+                        // let t2 = elements[elem_idx].to_ref_type();
+                        
+                        // if t1 != t2 {
+                        //     return Err(Error::DifferentRefTypes(t1, t2));
+                        // }
+                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        // // INFO: wasmtime checks for this value to be an index in the tables array, interesting
+                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                     }
                     _ => unreachable!(),
 

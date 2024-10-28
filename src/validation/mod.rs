@@ -36,6 +36,7 @@ pub struct ValidationInfo<'bytecode> {
     pub(crate) data: Vec<DataSegment>,
     /// The start function which is automatically executed during instantiation
     pub(crate) start: Option<FuncIdx>,
+    pub(crate) elements: Vec<ElemType>
 }
 
 pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
@@ -163,7 +164,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
-    let _: Option<Vec<ElemType>> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
+    let elements: Vec<ElemType> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
         use crate::core::reader::types::element::*;
         use crate::RefType;
         let mut elem_vec: Vec<ElemType> = Vec::new();
@@ -233,21 +234,21 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                 ElemItems::RefFuncs(wasm.read_vec(|w| w.read_var_u32())?)
             };
 
-            elem_vec.push(ElemType {
-                init: items,
-                mode: elem_mode
-            });
+            let el = ElemType {init: items, mode: elem_mode};
+            trace!("Element {}: {:?}", i+1, el);
+
+            elem_vec.push(el);
         }
 
         Ok(elem_vec)
         // todo!("element section not yet supported")
-    })?;
+    })?.unwrap_or_default();
 
-    let _element: Option<()> =
-        handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
-            todo!("element section not yet supported")
-        })?;
-    while (skip_section(&mut wasm, &mut header)?).is_some() {}
+    // let _element: Option<()> =
+    //     handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
+    //         todo!("element section not yet supported")
+    //     })?;
+    // while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     // https://webassembly.github.io/spec/core/binary/modules.html#data-count-section
     // As per the official documentation:
@@ -272,6 +273,8 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             &globals,
             &memories,
             &data_count,
+            &tables,
+            &elements
         )
     })?
     .unwrap_or_default();
@@ -345,6 +348,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     }
 
     debug!("Validation was successful");
+    
     Ok(ValidationInfo {
         wasm: wasm.into_inner(),
         types,
@@ -357,6 +361,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         func_blocks,
         data: data_section,
         start,
+        elements
     })
 }
 

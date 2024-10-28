@@ -1,4 +1,4 @@
-use core::fmt::{Debug, Formatter};
+use core::fmt::{Debug, Display};
 
 use alloc::vec::Vec;
 
@@ -6,20 +6,65 @@ use crate::core::reader::span::Span;
 
 use super::RefType;
 
-#[derive(Debug)]
+#[derive(Clone)]
 #[allow(dead_code)]
 pub struct ElemType {
     pub init: ElemItems,
     pub mode: ElemMode,
 }
 
-#[derive(Debug)]
-pub enum ElemItems {
-    RefFuncs(Vec<u32>),
-    Exprs(RefType, Vec<Span>)
+impl Debug for ElemType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "ElemType {{\n\tinit: {:?},\n\tmode: {:?}\n}}",
+            self.init, self.mode
+        )
+    }
 }
 
-#[derive(Debug)]
+impl ElemType {
+    pub fn ty(&self) -> RefType {
+        self.init.ty()
+    }
+    pub fn len(&self) -> usize {
+        self.init.len()
+    }
+    pub fn to_ref_type(&self) -> RefType {
+        match self.init {
+            ElemItems::Exprs(rref, _) => rref.clone(),
+            ElemItems::RefFuncs(_) => RefType::FuncRef,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ElemItems {
+    RefFuncs(Vec<u32>),
+    Exprs(RefType, Vec<Span>),
+}
+
+impl ElemItems {
+    pub fn ty(&self) -> RefType {
+        match self {
+            Self::RefFuncs(_) => RefType::FuncRef,
+            Self::Exprs(_, _) => RefType::ExternRef,
+        }
+    }
+    // pub fn get_el(&self, i: usize) {
+    //     match self {
+    //         Self::Exprs(_, )
+    //     }
+    // }
+    pub fn len(&self) -> usize {
+        match self {
+            Self::RefFuncs(v) => v.len(),
+            Self::Exprs(_, v) => v.len(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum ElemMode {
     Passive,
@@ -27,10 +72,10 @@ pub enum ElemMode {
     Declarative,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ActiveElem {
     pub table: u32,
-    pub offset: Span//Vec<u8>,
+    pub offset: Span, //Vec<u8>,
 }
 
 // impl Debug for ActiveElem {

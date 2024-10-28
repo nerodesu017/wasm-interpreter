@@ -271,15 +271,38 @@ pub enum Ref {
     Extern(ExternAddr),
 }
 
+impl Ref {
+    pub fn default_from_ref_type(rref: RefType) -> Self{
+        match rref {
+            RefType::None(rref) => Self::default_from_ref_type(rref.to_ref_type()),
+            RefType::ExternRef => Self::Extern(ExternAddr::default()),
+            RefType::FuncRef => Self::Func(FuncAddr::default())
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FuncAddr {
     pub is_null: bool,
-    pub addr: ()
+    // it is the idx of the function in the current module
+    pub addr: usize
 }
 
 impl FuncAddr {
+    pub fn new(addr: Option<usize>) -> Self {
+        match addr {
+            None => Self::null(),
+            Some(u) => Self {addr: u, is_null: false}
+        }
+    }
     pub fn null() -> Self {
-        Self {addr: (), is_null: true}
+        Self {addr: 0, is_null: true}
+    }
+}
+
+impl Default for FuncAddr {
+    fn default() -> Self {
+        Self::null()
     }
 }
 
@@ -292,6 +315,12 @@ pub struct ExternAddr {
 impl ExternAddr {
     pub fn null() -> Self {
         Self {addr: (), is_null: true}
+    }
+}
+
+impl Default for ExternAddr {
+    fn default() -> Self {
+        Self::null()
     }
 }
 

@@ -1,12 +1,13 @@
 use crate::core::indices::GlobalIdx;
 use crate::validation_stack::LabelKind;
+use crate::RefType;
 use core::fmt::{Display, Formatter};
 use core::str::Utf8Error;
 
 use crate::core::reader::section_header::SectionTy;
 use crate::core::reader::types::ValType;
 
-use super::indices::{DataIdx, MemIdx};
+use super::indices::{DataIdx, ElemIdx, MemIdx, TableIdx};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum RuntimeError {
@@ -17,6 +18,7 @@ pub enum RuntimeError {
     // https://github.com/wasmi-labs/wasmi/blob/37d1449524a322817c55026eb21eb97dd693b9ce/crates/core/src/trap.rs#L265C5-L265C27
     BadConversionToInteger,
     MemoryAccessOutOfBounds,
+    TableOrElementAccessOutOfBounds
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -56,7 +58,10 @@ pub enum Error {
     ErroneousAlignment(u32, u32),
     NoDataSegments,
     DataSegmentNotFound(DataIdx),
-    UnknownTable
+    UnknownTable,
+    TableIsNotDefined(TableIdx),
+    ElementIsNotDefined(ElemIdx),
+    DifferentRefTypes(RefType, RefType)
 }
 
 impl Display for Error {
@@ -147,7 +152,10 @@ impl Display for Error {
             Error::DataSegmentNotFound(data_idx) => {
                 f.write_fmt(format_args!("Data Segment {} not found", data_idx))
             }
-            Error::UnknownTable => f.write_str("Unknown Table")
+            Error::UnknownTable => f.write_str("Unknown Table"),
+            Error::TableIsNotDefined(table_idx) => f.write_fmt(format_args!("C.tables[{}] is NOT defined when it should be", table_idx)),
+            Error::ElementIsNotDefined(elem_idx) => f.write_fmt(format_args!("C.elems[{}] is NOT defined when it should be", elem_idx)),
+            Error::DifferentRefTypes(rref1, rref2) => f.write_fmt(format_args!("RefType {} is NOT equal to RefType {}", rref1, rref2))
         }
     }
 }
@@ -161,6 +169,7 @@ impl Display for RuntimeError {
             RuntimeError::StackSmash => f.write_str("Stack smashed"),
             RuntimeError::BadConversionToInteger => f.write_str("Bad conversion to integer"),
             RuntimeError::MemoryAccessOutOfBounds => f.write_str("Memory access out of bounds"),
+            RuntimeError::TableOrElementAccessOutOfBounds => f.write_str("Table or Element access out of bounds")
         }
     }
 }
