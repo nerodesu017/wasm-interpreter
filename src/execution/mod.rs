@@ -5,7 +5,7 @@ use const_interpreter_loop::run_const;
 use function_ref::FunctionRef;
 use interpreter_loop::run;
 use locals::Locals;
-use store::DataInst;
+use store::{DataInst, TableInst};
 use value_stack::Stack;
 
 use crate::core::reader::types::export::{Export, ExportDesc};
@@ -342,6 +342,13 @@ where
                 .collect()
         };
 
+        // https://webassembly.github.io/spec/core/exec/modules.html#tables
+        let tables: Vec<TableInst> = validation_info
+            .tables
+            .iter()
+            .map(|ty| TableInst::new(*ty))
+            .collect();
+
         let mut memory_instances: Vec<MemInst> = validation_info
             .memories
             .iter()
@@ -431,6 +438,7 @@ where
             mems: memory_instances,
             globals: global_instances,
             data: data_sections,
+            tables
         }
     }
 }

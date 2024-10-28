@@ -7,6 +7,7 @@ use core::fmt::{Debug, Formatter};
 
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::execution::assert_validated::UnwrapValidatedExt;
+use crate::value::{ExternAddr, FuncAddr, Ref, RefValueTy};
 use crate::Result;
 use crate::{unreachable_validated, Error};
 
@@ -18,6 +19,7 @@ pub mod import;
 pub mod memarg;
 pub mod opcode;
 pub mod values;
+pub mod element;
 
 /// <https://webassembly.github.io/spec/core/binary/types.html#number-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -81,8 +83,59 @@ impl WasmReadable for VecType {
 /// <https://webassembly.github.io/spec/core/binary/types.html#reference-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RefType {
+    None(ActualRefType),
     FuncRef,
-    ExternRef,
+    ExternRef
+}
+
+impl RefType {
+    pub fn to_actual_ref_type(&self) -> ActualRefType {
+        match self {
+            RefType::ExternRef => ActualRefType::ExternRef,
+            RefType::FuncRef => ActualRefType::FuncRef,
+            RefType::None(rref) => rref.clone()
+        }
+    }
+
+    pub fn to_ref(&self) -> Ref {
+        match self {
+            RefType::ExternRef => Ref::Extern(ExternAddr::null()),
+            RefType::FuncRef => Ref::Func(FuncAddr::null()),
+            _ => unreachable!()
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ActualRefType {
+    FuncRef,
+    ExternRef
+}
+
+impl ActualRefType {
+    pub fn to_ref_type(&self) -> RefType {
+        match self {
+            ActualRefType::ExternRef => RefType::ExternRef,
+            ActualRefType::FuncRef => RefType::FuncRef
+        }
+    }
+}
+
+impl RefType {
+    // pub fn to_ref_val_ty(&self) -> RefValueTy {
+    //     match self {
+    //         RefType::FuncRef => RefValueTy::Func,
+    //         RefType::ExternRef => RefValueTy::Extern,
+    //         RefType::None(rref) => rref.to_ref_type()
+    //     }
+    // }
+    pub fn from_byte(byte: u8) -> Result<RefType> {
+        match byte {
+            0x70 => Ok(RefType::FuncRef),
+            0x6F => Ok(RefType::ExternRef),
+            _ => Err(Error::InvalidRefType)
+        }
+    }
 }
 
 impl WasmReadable for RefType {

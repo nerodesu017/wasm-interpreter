@@ -56,6 +56,7 @@ pub enum Error {
     ErroneousAlignment(u32, u32),
     NoDataSegments,
     DataSegmentNotFound(DataIdx),
+    UnknownTable
 }
 
 impl Display for Error {
@@ -146,6 +147,7 @@ impl Display for Error {
             Error::DataSegmentNotFound(data_idx) => {
                 f.write_fmt(format_args!("Data Segment {} not found", data_idx))
             }
+            Error::UnknownTable => f.write_str("Unknown Table")
         }
     }
 }

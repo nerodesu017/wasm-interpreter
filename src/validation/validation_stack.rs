@@ -7,7 +7,7 @@
 use super::Result;
 use alloc::vec::Vec;
 
-use crate::{Error, ValType};
+use crate::{Error, RefType, ValType};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ValidationStack {

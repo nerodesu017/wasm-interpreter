@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
+use alloc::vec;
 use core::iter;
 
-use crate::core::indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx};
+use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
 use crate::core::reader::types::global::Global;
@@ -9,7 +10,7 @@ use crate::core::reader::types::memarg::MemArg;
 use crate::core::reader::types::{FuncType, MemType, NumType, ValType};
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::validation_stack::ValidationStack;
-use crate::{Error, Result};
+use crate::{Error, RefType, Result};
 
 pub fn validate_code_section(
     wasm: &mut WasmReader,
@@ -680,10 +681,35 @@ fn read_instructions(
                 stack.push_valtype(ValType::NumType(NumType::F64));
             }
 
+            REF_NULL => {
+                let reftype = RefType::read(wasm)?;
+                // at validation-time we don't really care if it's null or not
+                stack.push_valtype(ValType::RefType(reftype));
+            }
+
             REF_IS_NULL => {
                 stack.assert_pop_ref_type()?;
-
                 stack.push_valtype(ValType::NumType(NumType::I32));
+            }
+
+            // TODO finish this
+            // https://webassembly.github.io/spec/core/valid/instructions.html#xref-syntax-instructions-syntax-instr-ref-mathsf-ref-func-x
+            REF_FUNC => {
+                // We will be making use of fn_types to check for length of possible functions
+                // Is this okay?
+                // I don't know
+                let funcs: Vec<()> = vec![(); fn_types.len()];
+                let func_idx = wasm.read_var_f32()? as FuncIdx;
+                if func_idx >= funcs.len() {
+                    panic!();
+                }
+                let references: Vec<FuncIdx> = vec![];
+                if !references.contains(&func_idx) {
+                    panic!();
+                }
+                
+                stack.push_valtype(ValType::RefType(RefType::FuncRef));
+                unimplemented!();
             }
 
             FC_EXTENSIONS => {
@@ -770,6 +796,27 @@ fn read_instructions(
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    TABLE_INIT => {
+                        let elem_idx = wasm.read_var_u32()? as ElemIdx;
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+
+
+                        
+                        /*
+                            let table = self.table_type_at(table)?;
+                            let segment_ty = self.element_type_at(segment)?;
+                            if !self
+                                .resources
+                                .is_subtype(ValType::Ref(segment_ty), ValType::Ref(table.element_type))
+                            {
+                                bail!(self.offset, "type mismatch");
+                            }
+                            self.pop_operand(Some(ValType::I32))?;
+                            self.pop_operand(Some(ValType::I32))?;
+                            self.pop_operand(Some(table.index_type()))?;
+                            Ok(())
+                         */
                     }
                     _ => {
                         return Err(Error::InvalidMultiByteInstr(

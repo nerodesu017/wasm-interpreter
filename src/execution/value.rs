@@ -6,7 +6,7 @@ use core::ops::{Add, Div, Mul, Sub};
 
 use crate::core::reader::types::{NumType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
-use crate::unreachable_validated;
+use crate::{unreachable_validated, RefType};
 
 #[derive(Clone, Debug, Copy, PartialOrd)]
 pub struct F32(pub f32);
@@ -261,14 +261,45 @@ pub enum Value {
     F64(F64),
     // F64,
     // V128,
+    Ref(Ref)
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
 pub enum Ref {
-    Null,
-    // Func,
-    // Extern,
+    Func(FuncAddr),
+    Extern(ExternAddr),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FuncAddr {
+    pub is_null: bool,
+    pub addr: ()
+}
+
+impl FuncAddr {
+    pub fn null() -> Self {
+        Self {addr: (), is_null: true}
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ExternAddr {
+    pub is_null: bool,
+    pub addr: ()
+}
+
+impl ExternAddr {
+    pub fn null() -> Self {
+        Self {addr: (), is_null: true}
+    }
+}
+
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RefValueTy {
+    Func,
+    Extern
 }
 
 impl Value {
@@ -290,6 +321,10 @@ impl Value {
             Value::I64(_) => ValType::NumType(NumType::I64),
             Value::F32(_) => ValType::NumType(NumType::F32),
             Value::F64(_) => ValType::NumType(NumType::F64),
+            Value::Ref(rref) => match rref {
+                Ref::Extern(_) => ValType::RefType(RefType::ExternRef),
+                Ref::Func(_) => ValType::RefType(RefType::FuncRef)
+            }
         }
     }
 }

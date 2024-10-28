@@ -5,7 +5,9 @@ use crate::core::reader::types::{FuncType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::execution::value::Value;
 use crate::locals::Locals;
-use crate::unreachable_validated;
+use crate::{unreachable_validated, RefType};
+
+use super::value::Ref;
 
 /// The stack at runtime containing
 /// 1. Values
@@ -44,6 +46,30 @@ impl Stack {
         );
 
         self.values.pop().unwrap_validated();
+    }
+
+    /// Pop a reference of unknown type from the value stack
+    pub fn pop_unknown_ref(&mut self) -> Ref {
+        // If there is at least one stack frame, we shall not pop values past the current
+        // stackframe. However, there is one legitimate reason to pop when there is **no** current
+        // stackframe: after the outermost function returns, to extract the final return values of
+        // this interpreter invocation.
+        debug_assert!(
+            if !self.frames.is_empty() {
+                self.values.len() > self.current_stackframe().value_stack_base_idx
+            } else {
+                true
+            },
+            "can not pop values past the current stackframe"
+        );
+
+        let popped = self.values.pop().unwrap_validated();
+        match popped.to_ty() {
+            ValType::RefType(rref) => {
+                rref.to_ref()
+            }
+            _ => unreachable_validated!()
+        }
     }
 
     /// Pop a value of the given [ValType] from the value stack

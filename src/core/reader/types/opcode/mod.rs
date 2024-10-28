@@ -179,4 +179,10 @@ pub mod fc_extensions {
     pub const DATA_DROP: u8 = 0x09;
     pub const MEMORY_COPY: u8 = 0x0A;
     pub const MEMORY_FILL: u8 = 0x0B;
+    pub const TABLE_INIT: u8 = 0x0C;
+    pub const ELEM_DROP: u8 = 0x0D;
+    pub const TABLE_COPY: u8 = 0x0E;
+    pub const TABLE_GROW: u8 = 0x0F;
+    pub const TABLE_SIZE: u8 = 0x10;
+    pub const TABLE_FILL: u8 = 0x11;
 }

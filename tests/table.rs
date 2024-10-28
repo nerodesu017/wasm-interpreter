@@ -1,0 +1,166 @@
+/*
+# This file incorporates code from the WebAssembly testsuite, originally
+# available at https://github.com/WebAssembly/testsuite.
+#
+# The original code is licensed under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+*/
+use wasm::{validate, RuntimeError, RuntimeInstance};
+use wasm::Error as GeneralError;
+
+macro_rules! get_func {
+    ($instance:ident, $func_name:expr) => {
+        &$instance.get_function_by_name("", $func_name).unwrap()
+    };
+}
+
+macro_rules! assert_result {
+    ($instance:expr, $func:expr, $arg:expr, $result:expr) => {
+        assert_eq!($result, $instance.invoke($func, $arg).unwrap());
+    };
+}
+
+macro_rules! assert_error {
+    ($instance:expr, $func:expr, $arg:expr, $ret_type:ty, $invoke_param_type:ty, $invoke_return_type:ty, $err_type:expr) => {
+        let val: $ret_type =
+            $instance.invoke::<$invoke_param_type, $invoke_return_type>($func, $arg);
+        assert!(val.is_err());
+        assert!(val.unwrap_err() == $err_type);
+    };
+}
+
+
+#[test_log::test]
+fn table_basic() {
+    let w = r#"
+    (module (table 0 funcref))
+    (module (table 1 funcref))
+    (module (table 0 0 funcref))
+    (module (table 0 1 funcref))
+    (module (table 1 256 funcref))
+    (module (table 0 65536 funcref))
+    (module (table 0 0xffff_ffff funcref))
+"#
+    .split("\n")
+    .map(|el| el.trim())
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+
+    w.iter().for_each(|wat| {
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let validation_info = validate(&wasm_bytes).expect("validation failed");
+        RuntimeInstance::new(&validation_info).expect("instantiation failed");
+    });
+}
+
+#[test_log::test]
+fn table_basic_2() {
+    let w = r#"
+    (module (table 0 funcref) (table 0 funcref))
+    (module (table (import "spectest" "table") 0 funcref) (table 0 funcref))
+"#
+    .split("\n")
+    .map(|el| el.trim())
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+
+    w.iter().for_each(|wat| {
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let validation_info = validate(&wasm_bytes).expect("validation failed");
+        RuntimeInstance::new(&validation_info).expect("instantiation failed");
+    });
+}
+
+#[test_log::test]
+fn unknown_table() {
+    let w = r#"
+    (module (elem (i32.const 0)))
+    (module (elem (i32.const 0) $f) (func $f))
+"#
+    .split("\n")
+    .map(|el| el.trim())
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+
+
+    w.iter().for_each(|wat| {
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let validation_info = validate(&wasm_bytes);
+        assert!(validation_info.err().unwrap() == GeneralError::UnknownTable);
+    });
+}
+
+#[test_log::test]
+fn table_size_minimum_must_not_be_greater_than_maximum() {
+    let w = r#"
+    (module (table 1 0 funcref))
+    (module (table 0xffff_ffff 0 funcref))
+"#
+    .split("\n")
+    .map(|el| el.trim())
+    .filter(|el| !el.is_empty())
+    .collect::<Vec<&str>>();
+
+
+    w.iter().for_each(|wat| {
+        let wasm_bytes = wat::parse_str(wat).unwrap();
+        let validation_info = validate(&wasm_bytes);
+        assert!(validation_info.err().unwrap() == GeneralError::InvalidLimit);
+    });
+}
+
+// (assert_malformed
+//   (module quote "(table 0x1_0000_0000 funcref)")
+//   "i32 constant out of range"
+// )
+// (assert_malformed
+//   (module quote "(table 0x1_0000_0000 0x1_0000_0000 funcref)")
+//   "i32 constant out of range"
+// )
+// (assert_malformed
+//   (module quote "(table 0 0x1_0000_0000 funcref)")
+//   "i32 constant out of range"
+// )
+
+
+// ;; Duplicate table identifiers
+
+// #[test_log::test]
+// fn duplicate_table() {
+//     let w = r#"
+//     (module quote "(table $foo 1 funcref)" "(table $foo 1 funcref)")
+// "#
+//     .split("\n")
+//     .map(|el| el.trim())
+//     .filter(|el| !el.is_empty())
+//     .collect::<Vec<&str>>();
+
+
+//     w.iter().for_each(|wat| {
+//         let wasm_bytes = wat::parse_str(wat).unwrap();
+//         let validation_info = validate(&wasm_bytes);
+//         // assert!(validation_info.err().unwrap() == GeneralError::InvalidLimit);
+//     });
+// }
+
+// (assert_malformed (module quote
+//   "(table $foo 1 funcref)"
+//   "(table $foo 1 funcref)")
+//   "duplicate table")
+// (assert_malformed (module quote
+//   "(import \"\" \"\" (table $foo 1 funcref))"
+//   "(table $foo 1 funcref)")
+//   "duplicate table")
+// (assert_malformed (module quote
+//   "(import \"\" \"\" (table $foo 1 funcref))"
+//   "(import \"\" \"\" (table $foo 1 funcref))")
+//   "duplicate table")

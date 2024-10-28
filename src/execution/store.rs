@@ -18,6 +18,7 @@ pub struct Store {
     pub mems: Vec<MemInst>,
     pub globals: Vec<GlobalInst>,
     pub data: Vec<DataInst>,
+    pub tables: Vec<TableInst>
 }
 
 pub struct FuncInst {
@@ -27,9 +28,19 @@ pub struct FuncInst {
 }
 
 #[allow(dead_code)]
+/// https://webassembly.github.io/spec/core/exec/runtime.html#table-instances
 pub struct TableInst {
     pub ty: TableType,
     pub elem: Vec<Ref>,
+}
+
+impl TableInst {
+    pub fn new(ty: TableType) -> Self {
+        Self {
+            ty,
+            elem: vec![]
+        }
+    }
 }
 
 pub struct MemInst {

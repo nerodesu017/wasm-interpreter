@@ -11,21 +11,16 @@
 //!      want
 
 use alloc::vec::Vec;
+use alloc::vec;
 
 use crate::{
-    assert_validated::UnwrapValidatedExt,
-    core::{
+    assert_validated::UnwrapValidatedExt, core::{
         indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx},
         reader::{
             types::{memarg::MemArg, FuncType},
             WasmReadable, WasmReader,
         },
-    },
-    locals::Locals,
-    store::{DataInst, Store},
-    value,
-    value_stack::Stack,
-    Limits, NumType, RuntimeError, ValType, Value,
+    }, locals::Locals, store::{DataInst, Store}, value::{self, ExternAddr, FuncAddr, Ref, RefValueTy}, value_stack::Stack, Limits, NumType, RefType, RuntimeError, ValType, Value
 };
 
 #[cfg(feature = "hooks")]
@@ -1941,6 +1936,27 @@ pub(super) fn run<H: HookSet>(
                 trace!("Instruction: f64.reinterpret_i64 [{v1}] -> [{res:.17}]");
                 stack.push_value(res.into());
             }
+            REF_NULL => {
+                let reftype = RefType::read_unvalidated(&mut wasm);
+                
+                stack.push_value(Value::Ref(reftype.to_ref()));
+            }
+            REF_IS_NULL => {
+                let is_null = match stack.pop_unknown_ref() {
+                    Ref::Extern(rref) => rref.is_null,
+                    Ref::Func(rref) => rref.is_null
+                };
+
+                stack.push_value(Value::I32(if is_null {1} else {0}));
+            }
+            // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-ref-mathsf-ref-func-x
+            REF_FUNC => {
+                let func_idx = wasm.read_var_f32().unwrap_validated() as FuncIdx;
+                let funcaddrs: Vec<FuncAddr> = vec![];
+                let a = funcaddrs[func_idx];
+                // stack.push_value(Value::Ref(Ref));
+                unimplemented!();
+            }
             FC_EXTENSIONS => {
                 // Should we call instruction hook here as well? Multibyte instruction
                 let second_instr_byte = wasm.read_u8().unwrap_validated();
@@ -2241,6 +2257,7 @@ pub(super) fn run<H: HookSet>(
                         trace!("Instruction: memory.fill");
                     }
                     _ => unreachable!(),
+
                 }
             }
             other => {
