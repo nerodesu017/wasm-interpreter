@@ -239,6 +239,30 @@ fn read_instructions(
 
                 stack.assert_pop_val_type(global.ty.ty)?;
             }
+            TABLE_GET => {
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let t = tables.get(table_idx).unwrap().et;
+
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                stack.push_valtype(ValType::RefType(t.clone()));
+            }
+            TABLE_SET => {
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let t = tables.get(table_idx).unwrap().et;
+
+                stack.assert_pop_ref_type(Some(t))?;
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+            }
             I32_LOAD => {
                 if memories.is_empty() {
                     return Err(Error::MemoryIsNotDefined(0));
@@ -695,7 +719,7 @@ fn read_instructions(
             }
 
             REF_IS_NULL => {
-                stack.assert_pop_ref_type()?;
+                stack.assert_pop_ref_type(None)?;
                 stack.push_valtype(ValType::NumType(NumType::I32));
             }
 

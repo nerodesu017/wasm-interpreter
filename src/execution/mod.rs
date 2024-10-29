@@ -9,7 +9,6 @@ use store::{DataInst, ElemInst, TableInst};
 use value::{FuncAddr, Ref};
 use value_stack::Stack;
 
-use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::export::{Export, ExportDesc};
 use crate::core::reader::types::FuncType;
 use crate::core::reader::WasmReader;
@@ -432,8 +431,7 @@ where
                             crate::RefType::ExternRef => unimplemented!(),
                             crate::RefType::None(_) => unreachable!()
                         };
-
-                        trace!("table.len ({}) >= (offset ({}) + el.len ({}))", table.len(), offset, el.len());
+                        
                         assert!(table.len() >= (offset + el.len()));
 
                         el.elem.iter().enumerate().for_each(|(i, rref)| {

@@ -1,3 +1,4 @@
+use wasm::value::{FuncRefForInteropValue, Ref};
 /*
 # This file incorporates code from the WebAssembly testsuite, originally
 # available at https://github.com/WebAssembly/testsuite.
@@ -150,6 +151,72 @@ fn table_elem_test() {
         }
     });
     // assert!(instance.store.tables)
+}
+
+
+#[test_log::test]
+fn table_get_set_test() {
+    let w = r#"
+(module
+    (table $t3 3 funcref)
+    (elem (table $t3) (i32.const 1) func $dummy)
+    (elem func $dummypassive)
+    (func $dummypassive)
+    (func $dummy)
+
+    (func (export "init")
+        (table.set $t3 (i32.const 2) (table.get $t3 (i32.const 1)))
+    )
+
+    (func $f3 (export "get-funcref") (param $i i32) (result funcref)
+        (table.get $t3 (local.get $i))
+    )
+)
+    "#;
+    let wasm_bytes = wat::parse_str(w).unwrap();
+    let validation_info = validate(&wasm_bytes).unwrap();
+    let mut i = RuntimeInstance::new(&validation_info).expect("instantiation failed");
+
+    let get_funcref = get_func!(i, "get-funcref");
+    let init = get_func!(i, "init");
+
+    // assert the function at index 1 is a FuncRef and is NOT null
+    {
+        let funcref = i.invoke::<i32, FuncRefForInteropValue>(get_funcref, 1).unwrap();
+    
+        let rref = funcref.get_ref();
+    
+        match rref {
+            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == false)},
+            _ => panic!("Expected a FuncRef"),
+        }
+    }
+
+    // assert the function at index 2 is a FuncRef and is null
+    {
+        let funcref = i.invoke::<i32, FuncRefForInteropValue>(get_funcref, 2).unwrap();
+    
+        let rref = funcref.get_ref();
+    
+        match rref {
+            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == true)},
+            _ => panic!("Expected a FuncRef"),
+        }
+    }
+
+    // set the function at index 2 the same as the one at index 1
+    i.invoke::<(),()>(init, ()).unwrap();
+    // assert the function at index 2 is a FuncRef and is NOT null
+    {
+        let funcref = i.invoke::<i32, FuncRefForInteropValue>(get_funcref, 2).unwrap();
+    
+        let rref = funcref.get_ref();
+    
+        match rref {
+            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == false)},
+            _ => panic!("Expected a FuncRef"),
+        }
+    }
 }
 
 // (assert_malformed

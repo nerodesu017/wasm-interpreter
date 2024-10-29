@@ -61,7 +61,8 @@ pub enum Error {
     UnknownTable,
     TableIsNotDefined(TableIdx),
     ElementIsNotDefined(ElemIdx),
-    DifferentRefTypes(RefType, RefType)
+    DifferentRefTypes(RefType, RefType),
+    WrongRefTypeForInteropValue(RefType, RefType)
 }
 
 impl Display for Error {
@@ -155,7 +156,8 @@ impl Display for Error {
             Error::UnknownTable => f.write_str("Unknown Table"),
             Error::TableIsNotDefined(table_idx) => f.write_fmt(format_args!("C.tables[{}] is NOT defined when it should be", table_idx)),
             Error::ElementIsNotDefined(elem_idx) => f.write_fmt(format_args!("C.elems[{}] is NOT defined when it should be", elem_idx)),
-            Error::DifferentRefTypes(rref1, rref2) => f.write_fmt(format_args!("RefType {} is NOT equal to RefType {}", rref1, rref2))
+            Error::DifferentRefTypes(rref1, rref2) => f.write_fmt(format_args!("RefType {} is NOT equal to RefType {}", rref1, rref2)),
+            Error::WrongRefTypeForInteropValue(ref_given, ref_wanted) => f.write_fmt(format_args!("Wrong RefType for InteropValue: Given {} - Needed {}", ref_given, ref_wanted))
         }
     }
 }

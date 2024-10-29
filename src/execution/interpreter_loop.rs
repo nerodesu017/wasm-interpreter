@@ -15,7 +15,7 @@ use alloc::vec;
 
 use crate::{
     assert_validated::UnwrapValidatedExt, core::{
-        indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx},
+        indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, TableIdx},
         reader::{
             types::{memarg::MemArg, FuncType},
             WasmReadable, WasmReader,
@@ -191,6 +191,35 @@ pub(super) fn run<H: HookSet>(
                 let global = store.globals.get_mut(global_idx).unwrap_validated();
 
                 global.value = stack.pop_value(global.global.ty.ty)
+            }
+            TABLE_GET => {
+                let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
+
+                let tab = store.tables.get(table_idx).unwrap_validated();
+
+                let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                if i as usize >= tab.len() {
+                    return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                }
+
+                let val = tab.elem.get(i as usize).unwrap_validated();
+
+                stack.push_value((*val).into());
+            }
+            TABLE_SET => {
+                let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
+
+                let tab = store.tables.get(table_idx).unwrap_validated();
+
+                let val: Ref = stack.pop_value(ValType::RefType(tab.ty.et)).into();
+                let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                if i as usize >= tab.len() {
+                    return Err(RuntimeError::TableOrElementAccessOutOfBounds)
+                }
+
+                store.tables.get_mut(table_idx).unwrap_validated().elem[i as usize] = val;
             }
             I32_LOAD => {
                 let memarg = MemArg::read(&mut wasm).unwrap();
@@ -2271,6 +2300,15 @@ pub(super) fn run<H: HookSet>(
                         if ( s + n ) as usize > elem.len() || ( d + n ) as usize > tab.len() {
                             return Err(RuntimeError::TableOrElementAccessOutOfBounds);
                         }
+                        
+
+                        // while n > 0 {
+                        //     let val = elem.elem.get(s as usize).unwrap_validated();
+
+                        //     stack.push_value(d.into());
+
+                        //     // stack.push_value(*val.into());
+                        // }
 
                         // if n == 0 {
                         //     return;

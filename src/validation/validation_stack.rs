@@ -73,11 +73,22 @@ impl ValidationStack {
             .ok_or(Error::InvalidValidationStackValType(None))
     }
 
-    pub(super) fn assert_pop_ref_type(&mut self) -> Result<()> {
+    pub(super) fn assert_pop_ref_type(&mut self, expected_ty: Option<RefType>) -> Result<()> {
         let val = self.pop()?;
         match val {
             ValidationStackEntry::Val(v) => match v {
-                ValType::RefType(_) => Ok(()),
+                ValType::RefType(ref_type) => {
+                    match expected_ty {
+                        None => Ok(()),
+                        Some(expected_ty) => {
+                            if expected_ty == ref_type {
+                                Ok(())
+                            } else {
+                                Err(Error::DifferentRefTypes(ref_type, expected_ty))
+                            }
+                        }
+                    }
+                },
                 _ => panic!("Not a RefType"),
             },
             ValidationStackEntry::UnspecifiedValTypes => panic!("Found UnspecifiedValTypes"),

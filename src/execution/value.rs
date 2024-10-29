@@ -1,3 +1,4 @@
+use alloc::borrow::ToOwned;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::f32;
@@ -6,7 +7,9 @@ use core::ops::{Add, Div, Mul, Sub};
 
 use crate::core::reader::types::{NumType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
-use crate::{unreachable_validated, RefType};
+use crate::{unreachable_validated, Error, RefType, Result};
+
+use super::function_ref::FunctionRef;
 
 #[derive(Clone, Debug, Copy, PartialOrd)]
 pub struct F32(pub f32);
@@ -261,7 +264,7 @@ pub enum Value {
     F64(F64),
     // F64,
     // V128,
-    Ref(Ref)
+    Ref(Ref),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -272,31 +275,46 @@ pub enum Ref {
 }
 
 impl Ref {
-    pub fn default_from_ref_type(rref: RefType) -> Self{
+    pub fn default_from_ref_type(rref: RefType) -> Self {
         match rref {
             RefType::None(rref) => Self::default_from_ref_type(rref.to_ref_type()),
             RefType::ExternRef => Self::Extern(ExternAddr::default()),
-            RefType::FuncRef => Self::Func(FuncAddr::default())
+            RefType::FuncRef => Self::Func(FuncAddr::default()),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct FuncAddr {
     pub is_null: bool,
     // it is the idx of the function in the current module
-    pub addr: usize
+    pub addr: usize,
+}
+
+impl Debug for FuncAddr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.is_null {
+            false => write!(f, "FuncAddr {{\n\taddr: {}\n}}", self.addr),
+            true => write!(f, "FuncAddr {{}}"),
+        }
+    }
 }
 
 impl FuncAddr {
     pub fn new(addr: Option<usize>) -> Self {
         match addr {
             None => Self::null(),
-            Some(u) => Self {addr: u, is_null: false}
+            Some(u) => Self {
+                addr: u,
+                is_null: false,
+            },
         }
     }
     pub fn null() -> Self {
-        Self {addr: 0, is_null: true}
+        Self {
+            addr: 0,
+            is_null: true,
+        }
     }
 }
 
@@ -309,12 +327,15 @@ impl Default for FuncAddr {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExternAddr {
     pub is_null: bool,
-    pub addr: ()
+    pub addr: (),
 }
 
 impl ExternAddr {
     pub fn null() -> Self {
-        Self {addr: (), is_null: true}
+        Self {
+            addr: (),
+            is_null: true,
+        }
     }
 }
 
@@ -324,11 +345,10 @@ impl Default for ExternAddr {
     }
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RefValueTy {
     Func,
-    Extern
+    Extern,
 }
 
 impl Value {
@@ -338,6 +358,11 @@ impl Value {
             ValType::NumType(NumType::I64) => Self::I64(0),
             ValType::NumType(NumType::F32) => Self::F32(F32(0.0)),
             ValType::NumType(NumType::F64) => Self::F64(F64(0.0_f64)),
+            ValType::RefType(RefType::ExternRef) => Self::Ref(Ref::Extern(ExternAddr::null())),
+            ValType::RefType(RefType::FuncRef) => Self::Ref(Ref::Func(FuncAddr::new(None))),
+            ValType::RefType(RefType::None(actual_ref_type)) => {
+                Self::default_from_ty(ValType::RefType(actual_ref_type.to_ref_type()))
+            }
             other => {
                 todo!("cannot determine type for {other:?} because this value is not supported yet")
             }
@@ -352,8 +377,8 @@ impl Value {
             Value::F64(_) => ValType::NumType(NumType::F64),
             Value::Ref(rref) => match rref {
                 Ref::Extern(_) => ValType::RefType(RefType::ExternRef),
-                Ref::Func(_) => ValType::RefType(RefType::FuncRef)
-            }
+                Ref::Func(_) => ValType::RefType(RefType::FuncRef),
+            },
         }
     }
 }
@@ -516,6 +541,44 @@ impl InteropValue for f64 {
     }
 }
 
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct FuncRefForInteropValue {
+    rref: Ref,
+}
+
+impl FuncRefForInteropValue {
+    pub fn new(rref: Ref) -> Result<Self> {
+        match rref {
+            Ref::Extern(_) => Err(Error::WrongRefTypeForInteropValue(
+                RefType::ExternRef,
+                RefType::FuncRef,
+            )),
+            Ref::Func(_) => Ok(Self { rref: rref.clone() }),
+        }
+    }
+
+    pub fn get_ref(&self) -> Ref {
+        self.rref
+    }
+}
+
+impl InteropValue for FuncRefForInteropValue {
+    const TY: ValType = ValType::RefType(RefType::FuncRef);
+
+    #[allow(warnings)]
+    fn into_value(self) -> Value {
+        Value::Ref(self.rref)
+    }
+
+    #[allow(warnings)]
+    fn from_value(value: Value) -> Self {
+        match value {
+            Value::Ref(rref) => unsafe { FuncRefForInteropValue::new(rref).unwrap_unchecked() },
+            _ => unreachable_validated!(),
+        }
+    }
+}
+
 impl InteropValueList for () {
     const TYS: &'static [ValType] = &[];
 
@@ -640,3 +703,22 @@ impl_value_conversion!(u64);
 impl_value_conversion!(i64);
 impl_value_conversion!(F32);
 impl_value_conversion!(F64);
+
+// impl From<RefType> for Value {
+
+// }
+
+impl From<Ref> for Value {
+    fn from(value: Ref) -> Self {
+        Self::Ref(value.clone())
+    }
+}
+
+impl From<Value> for Ref {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Ref(rref) => rref.clone(),
+            _ => unreachable!(),
+        }
+    }
+}
