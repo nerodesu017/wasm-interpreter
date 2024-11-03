@@ -65,8 +65,11 @@ impl Stack {
 
         let popped = self.values.pop().unwrap_validated();
         match popped.to_ty() {
-            ValType::RefType(rref) => {
-                rref.to_ref()
+            ValType::RefType(_) => {
+                match popped {
+                    Value::Ref(rref) => rref.clone(),
+                    _ => unreachable!()
+                }
             }
             _ => unreachable_validated!()
         }

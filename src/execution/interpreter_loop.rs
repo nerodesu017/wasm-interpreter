@@ -10,17 +10,23 @@
 //!      [`Error::RuntimeError`](crate::Error::RuntimeError) variant, which as per 2., we don not
 //!      want
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 
 use crate::{
-    assert_validated::UnwrapValidatedExt, core::{
+    assert_validated::UnwrapValidatedExt,
+    core::{
         indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, TableIdx},
         reader::{
             types::{memarg::MemArg, FuncType},
             WasmReadable, WasmReader,
         },
-    }, locals::Locals, store::{DataInst, Store}, value::{self, ExternAddr, FuncAddr, Ref, RefValueTy}, value_stack::Stack, Limits, NumType, RefType, RuntimeError, ValType, Value
+    },
+    locals::Locals,
+    store::{DataInst, Store},
+    value::{self, ExternAddr, FuncAddr, Ref, RefValueTy},
+    value_stack::Stack,
+    Limits, NumType, RefType, RuntimeError, ValType, Value,
 };
 
 #[cfg(feature = "hooks")]
@@ -87,7 +93,7 @@ fn i32_load8_u_fun(
     // stack.push_value(Value::I32(data as u32));
     // Ok((relative_address, data))
     Ok(data as u32)
-}   
+}
 
 /// Interprets a functions. Parameters and return values are passed on the stack.
 pub(super) fn run<H: HookSet>(
@@ -176,7 +182,9 @@ pub(super) fn run<H: HookSet>(
             LOCAL_GET => {
                 let local_idx = wasm.read_var_u32().unwrap_validated() as LocalIdx;
                 stack.get_local(local_idx);
-                trace!("Instruction: local.get {} [] -> [t]", local_idx);
+
+                let peeked_value = stack.peek_unknown_value().unwrap();
+                trace!("Instruction: local.get {} [] -> [{:?}]", local_idx, peeked_value);
             }
             LOCAL_SET => stack.set_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
             LOCAL_TEE => stack.tee_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
@@ -205,7 +213,8 @@ pub(super) fn run<H: HookSet>(
 
                 let val = tab.elem.get(i as usize).unwrap_validated();
 
-                stack.push_value((*val).into());
+                stack.push_value(val.clone().into());
+                trace!("Instruction: table.get '{}' [{}] -> [{}]", table_idx, i, val);
             }
             TABLE_SET => {
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
@@ -216,10 +225,11 @@ pub(super) fn run<H: HookSet>(
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                 if i as usize >= tab.len() {
-                    return Err(RuntimeError::TableOrElementAccessOutOfBounds)
+                    return Err(RuntimeError::TableOrElementAccessOutOfBounds);
                 }
 
                 store.tables.get_mut(table_idx).unwrap_validated().elem[i as usize] = val;
+                trace!("Instruction: table.set '{}' [{} {}] -> []", table_idx, i, val)
             }
             I32_LOAD => {
                 let memarg = MemArg::read(&mut wasm).unwrap();
@@ -1967,16 +1977,20 @@ pub(super) fn run<H: HookSet>(
             }
             REF_NULL => {
                 let reftype = RefType::read_unvalidated(&mut wasm);
-                
-                stack.push_value(Value::Ref(reftype.to_ref()));
+
+                stack.push_value(Value::Ref(reftype.to_null_ref()));
+                trace!("Instruction: ref.null '{}' -> [{}]", reftype, reftype);
             }
             REF_IS_NULL => {
-                let is_null = match stack.pop_unknown_ref() {
+                let rref = stack.pop_unknown_ref();
+                let is_null = match rref {
                     Ref::Extern(rref) => rref.is_null,
-                    Ref::Func(rref) => rref.is_null
+                    Ref::Func(rref) => rref.is_null,
                 };
 
-                stack.push_value(Value::I32(if is_null {1} else {0}));
+                let res = if is_null {1} else {0};
+                trace!("Instruction: ref.is_null [{}] -> [{}]", rref, res);
+                stack.push_value(Value::I32(res));
             }
             // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-ref-mathsf-ref-func-x
             REF_FUNC => {
@@ -2286,6 +2300,8 @@ pub(super) fn run<H: HookSet>(
                         trace!("Instruction: memory.fill");
                     }
                     // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-table-mathsf-table-init-x-y
+                    // https://webassembly.github.io/spec/core/binary/instructions.html#table-instructions 
+                    // in binary format it seems that elemidx is first ???????
                     TABLE_INIT => {
                         let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
@@ -2293,52 +2309,144 @@ pub(super) fn run<H: HookSet>(
                         let tab = store.tables.get(table_idx).unwrap_validated();
                         let elem = store.elements.get(elem_idx).unwrap_validated();
 
-                        let mut n: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut s: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut d: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
-                        if ( s + n ) as usize > elem.len() || ( d + n ) as usize > tab.len() {
+                        if (s + n) as usize > elem.len() || (d + n) as usize > tab.len() {
                             return Err(RuntimeError::TableOrElementAccessOutOfBounds);
                         }
-                        
 
-                        // while n > 0 {
-                        //     let val = elem.elem.get(s as usize).unwrap_validated();
+                        while n > 0 {
+                            let val = elem.elem.get(s as usize).unwrap_validated();
 
-                        //     stack.push_value(d.into());
+                            #[allow(unused_labels)]
+                            'TABLE_SET: {
+                                store.tables.get_mut(table_idx).unwrap_validated().elem[d as usize] = val.clone();
+                            }
 
-                        //     // stack.push_value(*val.into());
-                        // }
+                            d = d+1;
+                            s = s+1;
+                            n = n-1;
+                        }
 
-                        // if n == 0 {
-                        //     return;
-                        // }
+                        trace!("Instruction: table.init '{}' '{}' [{} {} {}] -> []", elem_idx, table_idx, d, s, n);
+                    }
+                    ELEM_DROP => {
+                        let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        // let val = elem.init
+                        // WARN: i'm not sure if this is okay or not
+                        store.elements.get_mut(elem_idx).unwrap_validated().elem = vec![];
+                    }
+                    // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-table-mathsf-table-copy-x-y
+                    TABLE_COPY => {
+                        let table_x_idx = wasm.read_var_u32().unwrap_validated() as usize;
+                        let table_y_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        unimplemented!();
-                        // if tables.len() <= table_idx {
-                        //     return Err(Error::TableIsNotDefined(table_idx));
-                        // }
+                        let tab_x_elem_len = store.tables.get(table_x_idx).unwrap_validated().elem.len();
+                        let tab_y_elem_len = store.tables.get(table_y_idx).unwrap_validated().elem.len();
 
-                        // let t1 = tables[table_idx].et.clone();
-                        
-                        // if elements.len() <= elem_idx {
-                        //     return Err(Error::ElementIsNotDefined(elem_idx));
-                        // }
+                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
-                        // let t2 = elements[elem_idx].to_ref_type();
-                        
-                        // if t1 != t2 {
-                        //     return Err(Error::DifferentRefTypes(t1, t2));
-                        // }
-                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
-                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
-                        // // INFO: wasmtime checks for this value to be an index in the tables array, interesting
-                        // stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        if s + n > tab_y_elem_len as u32 || d + n > tab_x_elem_len as u32 {
+                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                        }
+
+                        while n > 0 {
+                            if d <= s {
+                                #[allow(unused_labels)]
+                                let t = 'TABLE_GET: {
+                                    store.tables.get(table_y_idx).unwrap_validated().elem.get(s as usize).unwrap_validated()
+                                };
+    
+                                #[allow(unused_labels)]
+                                'TABLE_SET: {
+                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem[d as usize] = t.clone();
+                                }
+
+                                d = d+1;
+                                s = s+1;
+                            } else {
+                                #[allow(unused_labels)]
+                                let t = 'TABLE_GET: {
+                                    store.tables.get(table_y_idx).unwrap_validated().elem.get((s + n - 1) as usize).unwrap_validated()
+                                };
+    
+                                #[allow(unused_labels)]
+                                'TABLE_SET: {
+                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem[(d + n - 1) as usize] = t.clone();
+                                }
+                            }
+
+                            n = n-1;
+                        }
+
+                        trace!("Instruction: table.copy '{}' '{}' [{} {} {}] -> []", table_x_idx, table_y_idx, d, s, n);
+                    }
+                    TABLE_GROW => {
+                        let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
+
+                        let tab = store.tables.get(table_idx).unwrap_validated();
+
+                        let sz = tab.elem.len() as u32;
+
+                        let n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let val = stack.pop_unknown_ref();
+
+                        let max = tab.ty.lim.max.unwrap();
+
+                        if sz + n > max {
+                            stack.push_value(Value::I32(u32::MAX));
+                        } else {
+                            store
+                                .tables
+                                .get_mut(table_idx)
+                                .unwrap_validated()
+                                .elem
+                                .extend(core::iter::repeat_n(val, n as usize));
+                            stack.push_value(Value::I32(n));
+                        }
+                    }
+                    TABLE_SIZE => {
+                        let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
+
+                        let tab = store.tables.get(table_idx).unwrap_validated();
+
+                        let sz = tab.elem.len() as u32;
+
+                        stack.push_value(Value::I32(sz));
+
+                        trace!("Instruction: table.size '{}' [] -> [{}]", table_idx, sz);
+                    }
+                    TABLE_FILL => {
+                        let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
+
+                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let ty = tab.ty.et;
+
+                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let val: Ref = stack.pop_value(ValType::RefType(ty)).into();
+                        let mut i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                        if i + n > tab.elem.len() as u32 {
+                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                        }
+
+                        while n > 0 {
+                            #[allow(unused_labels)]
+                            'TABLE_SET: {
+                                store.tables.get_mut(table_idx).unwrap_validated().elem[i as usize] = val.clone();
+                            }
+
+                            i += 1;
+                            n -= 1;
+                        }
+
+                        trace!("Instruction table.fill '{}' [{} {} {}] -> []", table_idx, i, val, n)
                     }
                     _ => unreachable!(),
-
                 }
             }
             other => {

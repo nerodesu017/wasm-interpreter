@@ -1,4 +1,3 @@
-use alloc::borrow::ToOwned;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::f32;
@@ -284,6 +283,15 @@ impl Ref {
     }
 }
 
+impl Display for Ref {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Ref::Func(func_addr) => write!(f, "FuncRef({})", func_addr),
+            Ref::Extern(extern_addr) => write!(f, "ExternRef({})", extern_addr),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub struct FuncAddr {
     pub is_null: bool,
@@ -295,7 +303,7 @@ impl Debug for FuncAddr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.is_null {
             false => write!(f, "FuncAddr {{\n\taddr: {}\n}}", self.addr),
-            true => write!(f, "FuncAddr {{}}"),
+            true => write!(f, "FuncAddr {{ NULL }}"),
         }
     }
 }
@@ -324,6 +332,16 @@ impl Default for FuncAddr {
     }
 }
 
+impl Display for FuncAddr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_null {
+            write!(f, "FuncAddr {{ NULL }}")
+        } else {
+            write!(f, "FuncAddr {{ addr: {} }}", self.addr)
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExternAddr {
     pub is_null: bool,
@@ -342,6 +360,16 @@ impl ExternAddr {
 impl Default for ExternAddr {
     fn default() -> Self {
         Self::null()
+    }
+}
+
+impl Display for ExternAddr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_null {
+            write!(f, "ExternAddr {{ NULL }}")
+        } else {
+            write!(f, "ExternAddr {{ addr: () }}") // No actual addr, so printing ()
+        }
     }
 }
 
@@ -710,6 +738,7 @@ impl_value_conversion!(F64);
 
 impl From<Ref> for Value {
     fn from(value: Ref) -> Self {
+        // trace!("From<Ref>: {}", value);
         Self::Ref(value.clone())
     }
 }
@@ -717,7 +746,10 @@ impl From<Ref> for Value {
 impl From<Value> for Ref {
     fn from(value: Value) -> Self {
         match value {
-            Value::Ref(rref) => rref.clone(),
+            Value::Ref(rref) => {
+                // trace!("From<Value> for Ref: {:?}", value);
+                rref.clone()
+            },
             _ => unreachable!(),
         }
     }

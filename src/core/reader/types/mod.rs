@@ -4,6 +4,7 @@
 
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
+use core::u32;
 
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::execution::assert_validated::UnwrapValidatedExt;
@@ -107,7 +108,8 @@ impl RefType {
         }
     }
 
-    pub fn to_ref(&self) -> Ref {
+    // TODO: we have to make sure they are NOT null Refs, but still, they are not valid ones as we cast them from RefTypes which don't hold addresses per-se
+    pub fn to_null_ref(&self) -> Ref {
         match self {
             RefType::ExternRef => Ref::Extern(ExternAddr::null()),
             RefType::FuncRef => Ref::Func(FuncAddr::null()),
@@ -350,10 +352,12 @@ pub struct TableType {
     pub lim: Limits,
 }
 
+// https://webassembly.github.io/spec/core/syntax/types.html#limits
 impl WasmReadable for TableType {
     fn read(wasm: &mut WasmReader) -> Result<Self> {
         let et = RefType::read(wasm)?;
-        let lim = Limits::read(wasm)?;
+        let mut lim = Limits::read(wasm)?;
+        if lim.max.is_none() {lim.max = Some(u32::MAX)};
         let table_type = Self {et, lim};
         trace!("Table: {:?}", table_type);
         Ok(Self { et, lim })
@@ -361,8 +365,8 @@ impl WasmReadable for TableType {
 
     fn read_unvalidated(wasm: &mut WasmReader) -> Self {
         let et = RefType::read_unvalidated(wasm);
-        let lim = Limits::read_unvalidated(wasm);
-
+        let mut lim = Limits::read_unvalidated(wasm);
+        if lim.max.is_none() {lim.max = Some(u32::MAX)};
         Self { et, lim }
     }
 }

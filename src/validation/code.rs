@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use alloc::vec;
 use core::iter;
 
+use crate::assert_validated::UnwrapValidatedExt;
 use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
@@ -850,6 +851,72 @@ fn read_instructions(
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         // INFO: wasmtime checks for this value to be an index in the tables array, interesting
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    ELEM_DROP => {
+                        let elem_idx = wasm.read_var_u32()? as ElemIdx;
+
+                        if elements.len() <= elem_idx {
+                            return Err(Error::ElementIsNotDefined(elem_idx));
+                        }
+                    }
+                    TABLE_COPY => {
+                        let table_x_idx = wasm.read_var_u32()? as TableIdx;
+                        let table_y_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_x_idx {
+                            return Err(Error::TableIsNotDefined(table_x_idx));
+                        }
+
+                        if tables.len() <= table_y_idx {
+                            return Err(Error::TableIsNotDefined(table_y_idx));
+                        }
+
+                        let t1 = tables.get(table_x_idx).unwrap_validated().et;
+                        let t2 = tables.get(table_y_idx).unwrap_validated().et;
+
+                        if t1 != t2 {
+                            return Err(Error::DifferentRefTypes(t1, t2));
+                        }
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    TABLE_GROW => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+                        
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        let t = tables.get(table_idx).unwrap_validated().et;
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_ref_type(Some(t))?;
+
+                        stack.push_valtype(ValType::NumType(NumType::I32));
+                    }
+                    TABLE_SIZE => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+                        
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        stack.push_valtype(ValType::NumType(NumType::I32));
+                    }
+                    TABLE_FILL => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+                        
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        let t = tables.get(table_idx).unwrap_validated().et;
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_ref_type(Some(t))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                     }
                     _ => {
