@@ -281,6 +281,20 @@ impl Ref {
             RefType::FuncRef => Self::Func(FuncAddr::default()),
         }
     }
+
+    pub fn is_null(&self) -> bool {
+        match self {
+            Self::Extern(extern_addr) => extern_addr.is_null,
+            Self::Func(func_addr) => func_addr.is_null
+        }
+    }
+
+    pub fn is_specific_func(&self, func_id: u32) -> bool {
+        match self {
+            Self::Func(func_addr) => !func_addr.is_null && func_addr.addr == func_id as usize,
+            _ => unimplemented!()
+        }
+    }
 }
 
 impl Display for Ref {

@@ -2406,7 +2406,7 @@ pub(super) fn run<H: HookSet>(
                                 .unwrap_validated()
                                 .elem
                                 .extend(core::iter::repeat_n(val, n as usize));
-                            stack.push_value(Value::I32(n));
+                            stack.push_value(Value::I32(sz));
                         }
                     }
                     TABLE_SIZE => {

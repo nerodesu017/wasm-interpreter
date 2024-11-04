@@ -13,6 +13,7 @@ use crate::Result;
 use crate::{unreachable_validated, Error};
 
 pub mod data;
+pub mod element;
 pub mod export;
 pub mod function_code_header;
 pub mod global;
@@ -20,7 +21,6 @@ pub mod import;
 pub mod memarg;
 pub mod opcode;
 pub mod values;
-pub mod element;
 
 /// <https://webassembly.github.io/spec/core/binary/types.html#number-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -86,16 +86,20 @@ impl WasmReadable for VecType {
 pub enum RefType {
     None(ActualRefType),
     FuncRef,
-    ExternRef
+    ExternRef,
 }
 
 impl Display for RefType {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", match self {
-            Self::ExternRef => "ExternRef",
-            Self::FuncRef => "FuncRef",
-            Self::None(rref) => format_args!("{}(NULL)", rref).as_str().unwrap()
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::ExternRef => "ExternRef",
+                Self::FuncRef => "FuncRef",
+                Self::None(rref) => format_args!("{}(NULL)", rref).as_str().unwrap(),
+            }
+        )
     }
 }
 
@@ -104,7 +108,7 @@ impl RefType {
         match self {
             RefType::ExternRef => ActualRefType::ExternRef,
             RefType::FuncRef => ActualRefType::FuncRef,
-            RefType::None(rref) => rref.clone()
+            RefType::None(rref) => rref.clone(),
         }
     }
 
@@ -113,7 +117,7 @@ impl RefType {
         match self {
             RefType::ExternRef => Ref::Extern(ExternAddr::null()),
             RefType::FuncRef => Ref::Func(FuncAddr::null()),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -121,15 +125,19 @@ impl RefType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ActualRefType {
     FuncRef,
-    ExternRef
+    ExternRef,
 }
 
 impl Display for ActualRefType {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", match self {
-            ActualRefType::ExternRef => "ExternRef",
-            ActualRefType::FuncRef => "FuncRef"
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                ActualRefType::ExternRef => "ExternRef",
+                ActualRefType::FuncRef => "FuncRef",
+            }
+        )
     }
 }
 
@@ -137,7 +145,7 @@ impl ActualRefType {
     pub fn to_ref_type(&self) -> RefType {
         match self {
             ActualRefType::ExternRef => RefType::ExternRef,
-            ActualRefType::FuncRef => RefType::FuncRef
+            ActualRefType::FuncRef => RefType::FuncRef,
         }
     }
 }
@@ -154,7 +162,7 @@ impl RefType {
         match byte {
             0x70 => Ok(RefType::FuncRef),
             0x6F => Ok(RefType::ExternRef),
-            _ => Err(Error::InvalidRefType)
+            _ => Err(Error::InvalidRefType),
         }
     }
 }
@@ -203,22 +211,31 @@ impl ValType {
 
 impl WasmReadable for ValType {
     fn read(wasm: &mut WasmReader) -> Result<Self> {
-        let numtype = NumType::read(wasm).map(ValType::NumType);
-        let vectype = VecType::read(wasm).map(|_ty| ValType::VecType);
-        let reftype = RefType::read(wasm).map(ValType::RefType);
+        if let Ok(numtype) = NumType::read(wasm).map(ValType::NumType) {
+            return Ok(numtype);
+        };
+        if let Ok(vectype) = VecType::read(wasm).map(|_ty| ValType::VecType) {
+            return Ok(vectype);
+        };
+        if let Ok(reftype) = RefType::read(wasm).map(ValType::RefType) {
+            return Ok(reftype);
+        }
 
-        numtype
-            .or(vectype)
-            .or(reftype)
-            .map_err(|_| Error::InvalidValType)
+        return Err(Error::InvalidValType);
     }
 
     fn read_unvalidated(wasm: &mut WasmReader) -> Self {
-        let numtype = NumType::read(wasm).map(ValType::NumType);
-        let vectype = VecType::read(wasm).map(|_ty| ValType::VecType);
-        let reftype = RefType::read(wasm).map(ValType::RefType);
+        if let Ok(numtype) = NumType::read(wasm).map(ValType::NumType) {
+            return numtype;
+        };
+        if let Ok(vectype) = VecType::read(wasm).map(|_ty| ValType::VecType) {
+            return vectype;
+        };
+        if let Ok(reftype) = RefType::read(wasm).map(ValType::RefType) {
+            return reftype;
+        }
 
-        numtype.or(vectype).or(reftype).unwrap_validated()
+        unreachable!()
     }
 }
 
@@ -253,11 +270,14 @@ pub struct FuncType {
 
 impl WasmReadable for FuncType {
     fn read(wasm: &mut WasmReader) -> Result<FuncType> {
+        trace!("Reading a FuncType");
         let 0x60 = wasm.read_u8()? else {
             return Err(Error::InvalidFuncType);
         };
 
+        trace!("Reading params");
         let params = ResultType::read(wasm)?;
+        trace!("Reading returns");
         let returns = ResultType::read(wasm)?;
 
         Ok(FuncType { params, returns })
@@ -357,8 +377,10 @@ impl WasmReadable for TableType {
     fn read(wasm: &mut WasmReader) -> Result<Self> {
         let et = RefType::read(wasm)?;
         let mut lim = Limits::read(wasm)?;
-        if lim.max.is_none() {lim.max = Some(u32::MAX)};
-        let table_type = Self {et, lim};
+        if lim.max.is_none() {
+            lim.max = Some(u32::MAX)
+        };
+        let table_type = Self { et, lim };
         trace!("Table: {:?}", table_type);
         Ok(Self { et, lim })
     }
@@ -366,7 +388,9 @@ impl WasmReadable for TableType {
     fn read_unvalidated(wasm: &mut WasmReader) -> Self {
         let et = RefType::read_unvalidated(wasm);
         let mut lim = Limits::read_unvalidated(wasm);
-        if lim.max.is_none() {lim.max = Some(u32::MAX)};
+        if lim.max.is_none() {
+            lim.max = Some(u32::MAX)
+        };
         Self { et, lim }
     }
 }

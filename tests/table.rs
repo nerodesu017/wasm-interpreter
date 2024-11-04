@@ -1,4 +1,3 @@
-use wasm::value::{FuncRefForInteropValue, Ref};
 /*
 # This file incorporates code from the WebAssembly testsuite, originally
 # available at https://github.com/WebAssembly/testsuite.
@@ -17,6 +16,7 @@ use wasm::value::{FuncRefForInteropValue, Ref};
 */
 use wasm::{validate, RuntimeError, RuntimeInstance};
 use wasm::Error as GeneralError;
+use wasm::value::{FuncRefForInteropValue, Ref};
 
 macro_rules! get_func {
     ($instance:ident, $func_name:expr) => {
