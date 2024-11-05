@@ -21,10 +21,11 @@ pub struct Store {
     pub globals: Vec<GlobalInst>,
     pub data: Vec<DataInst>,
     pub tables: Vec<TableInst>,
-    pub elements: Vec<ElemInst>
+    pub elements: Vec<ElemInst>,
+    pub passive_elem_indexes: Vec<usize>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// https://webassembly.github.io/spec/core/exec/runtime.html#element-instances
 pub struct ElemInst {
     pub ty: RefType,

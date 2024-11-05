@@ -357,15 +357,18 @@ where
         //     .map(|el| (*el).clone())
         //     .collect();
 
+        let mut passive_elem_indexes: Vec<usize> = vec![];
             // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
         let elements: Vec<ElemInst> = validation_info
             .elements
             .iter()
-            .map(|el| {
+            .enumerate()
+            .map(|(i, el)| {
                 use crate::core::reader::types::element::*;
                 trace!("{:#?}", el);
                 match el.mode.clone() {
                     ElemMode::Passive => {
+                        passive_elem_indexes.push(i);
                         // can be copied at runtime
                         match el.ty() {
                             crate::RefType::FuncRef => {
@@ -583,6 +586,7 @@ where
             data: data_sections,
             tables,
             elements,
+            passive_elem_indexes
         }
     }
 }

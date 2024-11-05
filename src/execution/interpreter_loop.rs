@@ -2347,17 +2347,26 @@ pub(super) fn run<H: HookSet>(
                         let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
+                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // size
+                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // offset
+                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // dst
+
                         let tab = store.tables.get(table_idx).unwrap_validated();
-                        let elem = store.elements.get(elem_idx).unwrap_validated();
+                        let tab_len = tab.len();
 
-                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let elem_len = if store.passive_elem_indexes.contains(&elem_idx) {
+                            store.elements.get(elem_idx).unwrap_validated().len()
+                        } else {
+                            0
+                        };
 
-                        if (s + n) as usize > elem.len() || (d + n) as usize > tab.len() {
+                        trace!("Instruction: table.init '{}' '{}' [{} {} {}] -> []", elem_idx, table_idx, d, s, n);
+                        
+                        if (s + n) as usize > elem_len || (d + n) as usize > tab_len {
                             return Err(RuntimeError::TableOrElementAccessOutOfBounds);
                         }
 
+                        let elem = store.elements.get(elem_idx).unwrap_validated();
                         while n > 0 {
                             let val = elem.elem.get(s as usize).unwrap_validated();
 
@@ -2371,7 +2380,7 @@ pub(super) fn run<H: HookSet>(
                             n = n-1;
                         }
 
-                        trace!("Instruction: table.init '{}' '{}' [{} {} {}] -> []", elem_idx, table_idx, d, s, n);
+                        
                     }
                     ELEM_DROP => {
                         let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
