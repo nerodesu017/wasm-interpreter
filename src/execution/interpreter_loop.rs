@@ -177,8 +177,8 @@ pub(super) fn run<H: HookSet>(
                     .unwrap_validated();
             }
             CALL_INDIRECT => {
-                let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
                 let type_idx = wasm.read_var_u32().unwrap_validated() as TypeIdx;
+                let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
 
                 let tab = store.tables.get(table_idx).unwrap_validated();
                 let func_ty = types.get(type_idx).unwrap_validated();
@@ -191,6 +191,7 @@ pub(super) fn run<H: HookSet>(
 
                 let r = tab.elem.get(i as usize).unwrap_validated();
                 if r.is_null() {
+                    trace!("table_idx ({table_idx}) --- element index in table ({i})");
                     return Err(RuntimeError::UninitializedElement);
                 }
 

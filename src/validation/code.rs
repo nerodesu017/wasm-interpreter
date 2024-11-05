@@ -194,13 +194,14 @@ fn read_instructions(
                 }
             }
             CALL_INDIRECT => {
+                let type_idx = wasm.read_var_u32()? as TypeIdx;
+                
                 let table_idx = wasm.read_var_u32()? as TableIdx;
 
                 if tables.len() <= table_idx {
                     return Err(Error::TableIsNotDefined(table_idx));
                 }
 
-                let type_idx = wasm.read_var_u32()? as TypeIdx;
 
                 let tab = tables.get(table_idx).unwrap_validated();
 
