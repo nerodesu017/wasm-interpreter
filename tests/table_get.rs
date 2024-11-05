@@ -15,7 +15,11 @@
 # limitations under the License.
 */
 
-use wasm::{validate, value::{FuncAddr, FuncRefForInteropValue, Ref}, Error, RuntimeError, RuntimeInstance, ValType};
+use wasm::{
+    validate,
+    value::{FuncAddr, FuncRefForInteropValue, Ref},
+    Error, RuntimeError, RuntimeInstance, ValType,
+};
 
 macro_rules! get_func {
     ($instance:ident, $func_name:expr) => {
@@ -74,11 +78,27 @@ fn table_funcref_test() {
     let is_null_funcref = get_func!(i, "is_null-funcref");
 
     let func_ref: Ref = Ref::Func(FuncAddr::new(Some(1)));
-    i.invoke::<FuncRefForInteropValue, ()>(init, FuncRefForInteropValue::new(func_ref).unwrap()).unwrap();
+    i.invoke::<FuncRefForInteropValue, ()>(init, FuncRefForInteropValue::new(func_ref).unwrap())
+        .unwrap();
 
-    assert_result!(i, get_funcref, 0, FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap());
-    assert_result!(i, get_funcref, 1, FuncRefForInteropValue::new(Ref::Func(FuncAddr::new(Some(1)))).unwrap());
-    assert_result!(i, get_funcref_2, 0, FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap());
+    assert_result!(
+        i,
+        get_funcref,
+        0,
+        FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap()
+    );
+    assert_result!(
+        i,
+        get_funcref,
+        1,
+        FuncRefForInteropValue::new(Ref::Func(FuncAddr::new(Some(1)))).unwrap()
+    );
+    assert_result!(
+        i,
+        get_funcref_2,
+        0,
+        FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap()
+    );
     assert_result!(i, is_null_funcref, 1, 0);
     assert_result!(i, is_null_funcref, 2, 0);
 

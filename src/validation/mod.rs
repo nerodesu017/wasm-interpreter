@@ -224,6 +224,11 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                 Some(ty) => Some(RefType::from_byte(ty)?),
             };
 
+            match reftype_or_elemkind {
+                Some(rty) => trace!("REFTYPE: {}", rty),
+                None => {trace!("REFTYPE NONE!")}
+            };
+
             let items: ElemItems = if use_of_el_ty_and_el_exprs {
                 ElemItems::Exprs(
                     reftype_or_elemkind.unwrap_or(RefType::FuncRef),

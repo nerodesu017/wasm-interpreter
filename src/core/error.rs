@@ -18,7 +18,8 @@ pub enum RuntimeError {
     // https://github.com/wasmi-labs/wasmi/blob/37d1449524a322817c55026eb21eb97dd693b9ce/crates/core/src/trap.rs#L265C5-L265C27
     BadConversionToInteger,
     MemoryAccessOutOfBounds,
-    TableOrElementAccessOutOfBounds
+    TableOrElementAccessOutOfBounds,
+    UninitializedElement
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -171,7 +172,8 @@ impl Display for RuntimeError {
             RuntimeError::StackSmash => f.write_str("Stack smashed"),
             RuntimeError::BadConversionToInteger => f.write_str("Bad conversion to integer"),
             RuntimeError::MemoryAccessOutOfBounds => f.write_str("Memory access out of bounds"),
-            RuntimeError::TableOrElementAccessOutOfBounds => f.write_str("Table or Element access out of bounds")
+            RuntimeError::TableOrElementAccessOutOfBounds => f.write_str("Table or Element access out of bounds"),
+            RuntimeError::UninitializedElement => f.write_str("Uninitialized element")
         }
     }
 }

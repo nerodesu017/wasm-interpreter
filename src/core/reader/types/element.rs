@@ -17,8 +17,8 @@ impl Debug for ElemType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "ElemType {{\n\tinit: {:?},\n\tmode: {:?}\n}}",
-            self.init, self.mode
+            "ElemType {{\n\tinit: {:?},\n\tmode: {:?},\n\t#ty: {}\n}}",
+            self.init, self.mode, self.init.ty()
         )
     }
 }
@@ -48,7 +48,7 @@ impl ElemItems {
     pub fn ty(&self) -> RefType {
         match self {
             Self::RefFuncs(_) => RefType::FuncRef,
-            Self::Exprs(_, _) => RefType::ExternRef,
+            Self::Exprs(rty, _) => rty.clone(),
         }
     }
     // pub fn get_el(&self, i: usize) {

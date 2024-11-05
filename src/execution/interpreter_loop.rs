@@ -16,7 +16,7 @@ use alloc::vec::Vec;
 use crate::{
     assert_validated::UnwrapValidatedExt,
     core::{
-        indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, TableIdx},
+        indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, TableIdx, TypeIdx},
         reader::{
             types::{memarg::MemArg, FuncType},
             WasmReadable, WasmReader,
@@ -172,6 +172,47 @@ pub(super) fn run<H: HookSet>(
                 trace!("Instruction: call [{func_to_call_idx:?}]");
                 let locals = Locals::new(params, remaining_locals);
                 stack.push_stackframe(func_to_call_idx, func_to_call_ty, locals, wasm.pc);
+
+                wasm.move_start_to(func_to_call_inst.code_expr)
+                    .unwrap_validated();
+            }
+            CALL_INDIRECT => {
+                let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
+                let type_idx = wasm.read_var_u32().unwrap_validated() as TypeIdx;
+
+                let tab = store.tables.get(table_idx).unwrap_validated();
+                let func_ty = types.get(type_idx).unwrap_validated();
+
+                let i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+
+                if i as usize >= tab.elem.len() {
+                    panic!("OUT OF BOUNDS ACCESS!");
+                }
+
+                let r = tab.elem.get(i as usize).unwrap_validated();
+                if r.is_null() {
+                    return Err(RuntimeError::UninitializedElement);
+                }
+
+                let func_addr = match *r {
+                    Ref::Func(func_addr) => func_addr.addr,
+                    Ref::Extern(_) => unreachable!()
+                };
+
+                let func_to_call_inst = store.funcs.get(func_addr).unwrap_validated();
+
+                let func_ty_actual_index = func_to_call_inst.ty;
+
+                if type_idx != func_ty_actual_index {
+                    panic!("Function types are NOT equal: {} - {}", type_idx, func_ty_actual_index)
+                }
+
+                let params = stack.pop_tail_iter(func_ty.params.valtypes.len());
+                let remaining_locals = func_to_call_inst.locals.iter().cloned();
+
+                trace!("Instruction: call [{func_addr:?}]");
+                let locals = Locals::new(params, remaining_locals);
+                stack.push_stackframe(func_addr, func_ty, locals, wasm.pc);
 
                 wasm.move_start_to(func_to_call_inst.code_expr)
                     .unwrap_validated();
@@ -1994,11 +2035,10 @@ pub(super) fn run<H: HookSet>(
             }
             // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-ref-mathsf-ref-func-x
             REF_FUNC => {
-                let func_idx = wasm.read_var_f32().unwrap_validated() as FuncIdx;
-                let funcaddrs: Vec<FuncAddr> = vec![];
-                let a = funcaddrs[func_idx];
-                // stack.push_value(Value::Ref(Ref));
-                unimplemented!();
+                let func_idx = wasm.read_var_u32().unwrap_validated() as FuncIdx;
+                // let funcaddrs: Vec<FuncAddr> = vec![];
+                // let a = funcaddrs[func_idx];
+                stack.push_value(Value::Ref(Ref::Func(FuncAddr::new(Some(func_idx)))));
             }
             FC_EXTENSIONS => {
                 // Should we call instruction hook here as well? Multibyte instruction

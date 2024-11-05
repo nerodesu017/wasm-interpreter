@@ -1,5 +1,6 @@
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use alloc::vec;
 
 use const_interpreter_loop::run_const;
 use function_ref::FunctionRef;
@@ -362,6 +363,7 @@ where
             .iter()
             .map(|el| {
                 use crate::core::reader::types::element::*;
+                trace!("{:#?}", el);
                 match el.mode.clone() {
                     ElemMode::Passive => {
                         // can be copied at runtime
@@ -370,12 +372,55 @@ where
                                 ElemInst {
                                     ty: el.ty(),
                                     elem: match &el.init {
-                                        ElemItems::Exprs(_, _) => unreachable!(),
-                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))})
-                                    }.collect::<Vec<Ref>>()
+                                        ElemItems::Exprs(_, sub_programs) => {
+                                            sub_programs.iter().map(|sub_program| {
+                                                let value = {
+                                                    let mut wasm = WasmReader::new(validation_info.wasm);
+                                                    wasm.move_start_to(*sub_program).unwrap_validated();
+                                                    let mut stack = Stack::new();
+                                                    // TODO: fully implement run_const
+                                                    run_const(wasm, &mut stack, (), &function_instances);
+                                                    let value = stack.peek_unknown_value();
+                                                    if value.is_none() {
+                                                        panic!("No value on the stack for element segment offset");
+                                                    }
+                                                    value.unwrap()
+                                                };
+
+                                                let offset: u32 = match value {
+                                                    // Value::I32(val) => val,
+                                                    // Value::I64(val) => {
+                                                    //     if val > u32::MAX as u64 {
+                                                    //         panic!("i64 value for data segment offset is out of reach")
+                                                    //     }
+                                                    //     val as u32
+                                                    // }
+                                                    // INFO: no need to implement all of them, it's either i32 or i64, otherwise offset is WRONG
+                                                    // INFO2: wait, we might need globals handling, now that I think about it, but make it return an u32 anyways
+                                                    Value::Ref(rref) => {
+                                                        match rref {
+                                                            Ref::Func(func_addr) => func_addr.addr as u32,
+                                                            Ref::Extern(_) => unreachable!()
+                                                        }
+                                                    }
+                                                    _ => {
+                                                        
+                                                        unreachable!()
+                                                    },
+                                                };
+
+                                                Ref::Func(FuncAddr::new(Some(offset as usize)))
+                                            }).collect::<Vec<Ref>>()
+                                        },
+                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))}).collect::<Vec<Ref>>()
+                                    }
                                 }
                             }
-                            crate::RefType::ExternRef => unimplemented!(),
+                            crate::RefType::ExternRef => {
+                                trace!("{:?}", el);
+                                trace!("el.ty(): {}", el.ty());
+                                unimplemented!()
+                            },
                             crate::RefType::None(_) => unreachable!()
                         }
                     },
@@ -394,7 +439,7 @@ where
                             wasm.move_start_to(active_elem.offset).unwrap_validated();
                             let mut stack = Stack::new();
                             // TODO: fully implement run_const
-                            run_const(wasm, &mut stack, ());
+                            run_const(wasm, &mut stack, (), &vec![]);
                             let value = stack.peek_unknown_value();
                             if value.is_none() {
                                 panic!("No value on the stack for element segment offset");
@@ -469,7 +514,7 @@ where
                         let mut wasm = WasmReader::new(validation_info.wasm);
                         wasm.move_start_to(active_data.offset).unwrap_validated();
                         let mut stack = Stack::new();
-                        run_const(wasm, &mut stack, ());
+                        run_const(wasm, &mut stack, (), &vec![]);
                         let value = stack.peek_unknown_value();
                         if value.is_none() {
                             panic!("No value on the stack for data segment offset");
@@ -520,7 +565,7 @@ where
                     wasm.move_start_to(global.init_expr).unwrap_validated();
                     // We shouldn't need to clear the stack. If validation is correct, it will remain empty after execution.
 
-                    run_const(wasm, &mut stack, ());
+                    run_const(wasm, &mut stack, (), &vec![]);
                     let value = stack.pop_value(global.ty.ty);
 
                     GlobalInst {

@@ -3,7 +3,7 @@ use alloc::vec;
 use core::iter;
 
 use crate::assert_validated::UnwrapValidatedExt;
-use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx};
+use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx, TypeIdx};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
 use crate::core::reader::types::element::ElemType;
@@ -188,6 +188,38 @@ fn read_instructions(
                 for typ in func_ty.params.valtypes.iter().rev() {
                     stack.assert_pop_val_type(*typ)?;
                 }
+
+                for typ in func_ty.returns.valtypes.iter() {
+                    stack.push_valtype(*typ);
+                }
+            }
+            CALL_INDIRECT => {
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let type_idx = wasm.read_var_u32()? as TypeIdx;
+
+                let tab = tables.get(table_idx).unwrap_validated();
+
+                if tab.et != RefType::FuncRef {
+                    return Err(Error::WrongRefTypeForInteropValue(tab.et, RefType::FuncRef));
+                }
+
+                if fn_types.len() <= type_idx {
+                    panic!("out of bounds access in function types for {} (type_idx)", type_idx);
+                }
+                
+                let func_ty = &fn_types[type_idx];
+                
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+
+                for typ in func_ty.params.valtypes.iter().rev() {
+                    stack.assert_pop_val_type(*typ)?;
+                }
+
 
                 for typ in func_ty.returns.valtypes.iter() {
                     stack.push_valtype(*typ);
@@ -731,7 +763,7 @@ fn read_instructions(
                 // Is this okay?
                 // I don't know
                 let funcs: Vec<()> = vec![(); fn_types.len()];
-                let func_idx = wasm.read_var_f32()? as FuncIdx;
+                let func_idx = wasm.read_var_u32()? as FuncIdx;
                 if func_idx >= funcs.len() {
                     panic!();
                 }
@@ -741,7 +773,7 @@ fn read_instructions(
                 }
                 
                 stack.push_valtype(ValType::RefType(RefType::FuncRef));
-                unimplemented!();
+                // unimplemented!();
             }
 
             FC_EXTENSIONS => {
