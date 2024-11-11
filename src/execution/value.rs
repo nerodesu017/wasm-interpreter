@@ -8,7 +8,6 @@ use crate::core::reader::types::{NumType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::{unreachable_validated, Error, RefType, Result};
 
-use super::function_ref::FunctionRef;
 
 #[derive(Clone, Debug, Copy, PartialOrd)]
 pub struct F32(pub f32);
@@ -595,7 +594,7 @@ impl FuncRefForInteropValue {
                 RefType::ExternRef,
                 RefType::FuncRef,
             )),
-            Ref::Func(_) => Ok(Self { rref: rref.clone() }),
+            Ref::Func(_) => Ok(Self { rref }),
         }
     }
 
@@ -753,7 +752,7 @@ impl_value_conversion!(F64);
 impl From<Ref> for Value {
     fn from(value: Ref) -> Self {
         // trace!("From<Ref>: {}", value);
-        Self::Ref(value.clone())
+        Self::Ref(value)
     }
 }
 
@@ -762,7 +761,7 @@ impl From<Value> for Ref {
         match value {
             Value::Ref(rref) => {
                 // trace!("From<Value> for Ref: {:?}", value);
-                rref.clone()
+                rref
             },
             _ => unreachable!(),
         }

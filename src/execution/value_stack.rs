@@ -5,7 +5,7 @@ use crate::core::reader::types::{FuncType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::execution::value::Value;
 use crate::locals::Locals;
-use crate::{unreachable_validated, RefType};
+use crate::unreachable_validated;
 
 use super::value::Ref;
 
@@ -67,7 +67,7 @@ impl Stack {
         match popped.to_ty() {
             ValType::RefType(_) => {
                 match popped {
-                    Value::Ref(rref) => rref.clone(),
+                    Value::Ref(rref) => rref,
                     _ => unreachable!()
                 }
             }

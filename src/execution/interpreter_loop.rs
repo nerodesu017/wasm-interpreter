@@ -24,7 +24,7 @@ use crate::{
     },
     locals::Locals,
     store::{DataInst, Store},
-    value::{self, ExternAddr, FuncAddr, Ref, RefValueTy},
+    value::{self, FuncAddr, Ref},
     value_stack::Stack,
     Limits, NumType, RefType, RuntimeError, ValType, Value,
 };
@@ -186,7 +186,7 @@ pub(super) fn run<H: HookSet>(
                 let i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                 if i as usize >= tab.elem.len() {
-                    panic!("OUT OF BOUNDS ACCESS!");
+                    return Err(RuntimeError::TableAccessOutOfBounds);
                 }
 
                 let r = tab.elem.get(i as usize).unwrap_validated();
@@ -197,7 +197,7 @@ pub(super) fn run<H: HookSet>(
 
                 let func_addr = match *r {
                     Ref::Func(func_addr) => func_addr.addr,
-                    Ref::Extern(_) => unreachable!()
+                    Ref::Extern(_) => unreachable!(),
                 };
 
                 let func_to_call_inst = store.funcs.get(func_addr).unwrap_validated();
@@ -205,7 +205,7 @@ pub(super) fn run<H: HookSet>(
                 let func_ty_actual_index = func_to_call_inst.ty;
 
                 if type_idx != func_ty_actual_index {
-                    panic!("Function types are NOT equal: {} - {}", type_idx, func_ty_actual_index)
+                    return Err(RuntimeError::SignatureMismatch);
                 }
 
                 let params = stack.pop_tail_iter(func_ty.params.valtypes.len());
@@ -226,7 +226,11 @@ pub(super) fn run<H: HookSet>(
                 stack.get_local(local_idx);
 
                 let peeked_value = stack.peek_unknown_value().unwrap();
-                trace!("Instruction: local.get {} [] -> [{:?}]", local_idx, peeked_value);
+                trace!(
+                    "Instruction: local.get {} [] -> [{:?}]",
+                    local_idx,
+                    peeked_value
+                );
             }
             LOCAL_SET => stack.set_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
             LOCAL_TEE => stack.tee_local(wasm.read_var_u32().unwrap_validated() as LocalIdx),
@@ -250,13 +254,18 @@ pub(super) fn run<H: HookSet>(
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                 if i as usize >= tab.len() {
-                    return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                    return Err(RuntimeError::TableAccessOutOfBounds);
                 }
 
                 let val = tab.elem.get(i as usize).unwrap_validated();
 
-                stack.push_value(val.clone().into());
-                trace!("Instruction: table.get '{}' [{}] -> [{}]", table_idx, i, val);
+                stack.push_value((*val).into());
+                trace!(
+                    "Instruction: table.get '{}' [{}] -> [{}]",
+                    table_idx,
+                    i,
+                    val
+                );
             }
             TABLE_SET => {
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
@@ -267,11 +276,16 @@ pub(super) fn run<H: HookSet>(
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                 if i as usize >= tab.len() {
-                    return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                    return Err(RuntimeError::TableAccessOutOfBounds);
                 }
 
                 store.tables.get_mut(table_idx).unwrap_validated().elem[i as usize] = val;
-                trace!("Instruction: table.set '{}' [{} {}] -> []", table_idx, i, val)
+                trace!(
+                    "Instruction: table.set '{}' [{} {}] -> []",
+                    table_idx,
+                    i,
+                    val
+                )
             }
             I32_LOAD => {
                 let memarg = MemArg::read(&mut wasm).unwrap();
@@ -2030,7 +2044,7 @@ pub(super) fn run<H: HookSet>(
                     Ref::Func(rref) => rref.is_null,
                 };
 
-                let res = if is_null {1} else {0};
+                let res = if is_null { 1 } else { 0 };
                 trace!("Instruction: ref.is_null [{}] -> [{}]", rref, res);
                 stack.push_value(Value::I32(res));
             }
@@ -2341,8 +2355,9 @@ pub(super) fn run<H: HookSet>(
                         trace!("Instruction: memory.fill");
                     }
                     // https://webassembly.github.io/spec/core/exec/instructions.html#xref-syntax-instructions-syntax-instr-table-mathsf-table-init-x-y
-                    // https://webassembly.github.io/spec/core/binary/instructions.html#table-instructions 
+                    // https://webassembly.github.io/spec/core/binary/instructions.html#table-instructions
                     // in binary format it seems that elemidx is first ???????
+                    // this is ONLY for passive elements
                     TABLE_INIT => {
                         let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
@@ -2360,11 +2375,19 @@ pub(super) fn run<H: HookSet>(
                             0
                         };
 
-                        trace!("Instruction: table.init '{}' '{}' [{} {} {}] -> []", elem_idx, table_idx, d, s, n);
-                        
+                        trace!(
+                            "Instruction: table.init '{}' '{}' [{} {} {}] -> []",
+                            elem_idx,
+                            table_idx,
+                            d,
+                            s,
+                            n
+                        );
+
                         if (s + n) as usize > elem_len || (d + n) as usize > tab_len {
-                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                            return Err(RuntimeError::TableAccessOutOfBounds);
                         }
+
 
                         let elem = store.elements.get(elem_idx).unwrap_validated();
                         while n > 0 {
@@ -2372,15 +2395,14 @@ pub(super) fn run<H: HookSet>(
 
                             #[allow(unused_labels)]
                             'TABLE_SET: {
-                                store.tables.get_mut(table_idx).unwrap_validated().elem[d as usize] = val.clone();
+                                store.tables.get_mut(table_idx).unwrap_validated().elem
+                                    [d as usize] = *val;
                             }
 
-                            d = d+1;
-                            s = s+1;
-                            n = n-1;
+                            d += 1;
+                            s += 1;
+                            n -= 1;
                         }
-
-                        
                     }
                     ELEM_DROP => {
                         let elem_idx = wasm.read_var_u32().unwrap_validated() as usize;
@@ -2393,47 +2415,70 @@ pub(super) fn run<H: HookSet>(
                         let table_x_idx = wasm.read_var_u32().unwrap_validated() as usize;
                         let table_y_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        let tab_x_elem_len = store.tables.get(table_x_idx).unwrap_validated().elem.len();
-                        let tab_y_elem_len = store.tables.get(table_y_idx).unwrap_validated().elem.len();
+                        let tab_x_elem_len =
+                            store.tables.get(table_x_idx).unwrap_validated().elem.len();
+                        let tab_y_elem_len =
+                            store.tables.get(table_y_idx).unwrap_validated().elem.len();
 
                         let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
                         let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                         if s + n > tab_y_elem_len as u32 || d + n > tab_x_elem_len as u32 {
-                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                            return Err(RuntimeError::TableAccessOutOfBounds);
                         }
 
                         while n > 0 {
                             if d <= s {
                                 #[allow(unused_labels)]
                                 let t = 'TABLE_GET: {
-                                    store.tables.get(table_y_idx).unwrap_validated().elem.get(s as usize).unwrap_validated()
+                                    store
+                                        .tables
+                                        .get(table_y_idx)
+                                        .unwrap_validated()
+                                        .elem
+                                        .get(s as usize)
+                                        .unwrap_validated()
                                 };
-    
+
                                 #[allow(unused_labels)]
                                 'TABLE_SET: {
-                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem[d as usize] = t.clone();
+                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem
+                                        [d as usize] = *t;
                                 }
 
-                                d = d+1;
-                                s = s+1;
+                                d += 1;
+                                s += 1;
                             } else {
                                 #[allow(unused_labels)]
                                 let t = 'TABLE_GET: {
-                                    store.tables.get(table_y_idx).unwrap_validated().elem.get((s + n - 1) as usize).unwrap_validated()
+                                    store
+                                        .tables
+                                        .get(table_y_idx)
+                                        .unwrap_validated()
+                                        .elem
+                                        .get((s + n - 1) as usize)
+                                        .unwrap_validated()
                                 };
-    
+
                                 #[allow(unused_labels)]
                                 'TABLE_SET: {
-                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem[(d + n - 1) as usize] = t.clone();
+                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem
+                                        [(d + n - 1) as usize] = *t;
                                 }
                             }
 
-                            n = n-1;
+                            n -= 1;
                         }
 
-                        trace!("Instruction: table.copy '{}' '{}' [{} {} {}] -> []", table_x_idx, table_y_idx, d, s, n);
+                        trace!(
+                            "Instruction: table.copy '{}' '{}' [{} {} {}] -> []",
+                            table_x_idx,
+                            table_y_idx,
+                            d,
+                            s,
+                            n
+                        );
                     }
                     TABLE_GROW => {
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
@@ -2481,20 +2526,27 @@ pub(super) fn run<H: HookSet>(
                         let mut i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
                         if i + n > tab.elem.len() as u32 {
-                            return Err(RuntimeError::TableOrElementAccessOutOfBounds);
+                            return Err(RuntimeError::TableAccessOutOfBounds);
                         }
 
                         while n > 0 {
                             #[allow(unused_labels)]
                             'TABLE_SET: {
-                                store.tables.get_mut(table_idx).unwrap_validated().elem[i as usize] = val.clone();
+                                store.tables.get_mut(table_idx).unwrap_validated().elem
+                                    [i as usize] = val;
                             }
 
                             i += 1;
                             n -= 1;
                         }
 
-                        trace!("Instruction table.fill '{}' [{} {} {}] -> []", table_idx, i, val, n)
+                        trace!(
+                            "Instruction table.fill '{}' [{} {} {}] -> []",
+                            table_idx,
+                            i,
+                            val,
+                            n
+                        )
                     }
                     _ => unreachable!(),
                 }

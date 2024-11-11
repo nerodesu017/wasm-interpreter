@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 */
-use wasm::{validate, RuntimeError, RuntimeInstance};
+use wasm::{validate, RuntimeInstance};
 use wasm::Error as GeneralError;
 use wasm::value::{FuncRefForInteropValue, Ref};
 
@@ -138,14 +138,14 @@ fn table_elem_test() {
     let wasm_bytes = wat::parse_str(w).unwrap();
     let validation_info = validate(&wasm_bytes).unwrap();
     let instance = RuntimeInstance::new(&validation_info).expect("instantiation failed");
-    let table = instance.store.tables.get(0).unwrap();
+    let table = instance.store.tables.first().unwrap();
     assert!(table.len() == 2);
     let wanted: [usize; 2] = [0,2];
     table.elem.iter().enumerate().for_each(|(i,rref)| {
         match *rref {
             wasm::value::Ref::Extern(_) => panic!(),
             wasm::value::Ref::Func(func_addr) => {
-                assert!(func_addr.is_null == false);
+                assert!(!func_addr.is_null);
                 assert!(wanted[i] == func_addr.addr)
             }
         }
@@ -187,7 +187,7 @@ fn table_get_set_test() {
         let rref = funcref.get_ref();
     
         match rref {
-            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == false)},
+            Ref::Func(funcaddr) => { assert!(!funcaddr.is_null)},
             _ => panic!("Expected a FuncRef"),
         }
     }
@@ -199,7 +199,7 @@ fn table_get_set_test() {
         let rref = funcref.get_ref();
     
         match rref {
-            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == true)},
+            Ref::Func(funcaddr) => { assert!(funcaddr.is_null)},
             _ => panic!("Expected a FuncRef"),
         }
     }
@@ -213,7 +213,7 @@ fn table_get_set_test() {
         let rref = funcref.get_ref();
     
         match rref {
-            Ref::Func(funcaddr) => { assert!(funcaddr.is_null == false)},
+            Ref::Func(funcaddr) => { assert!(!funcaddr.is_null)},
             _ => panic!("Expected a FuncRef"),
         }
     }

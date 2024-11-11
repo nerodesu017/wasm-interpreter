@@ -17,8 +17,7 @@
 
 use wasm::{
     validate,
-    value::{FuncAddr, FuncRefForInteropValue, Ref},
-    Error, RuntimeError, RuntimeInstance, ValType,
+    value::{FuncAddr, FuncRefForInteropValue, Ref}, RuntimeError, RuntimeInstance,
 };
 
 macro_rules! get_func {
@@ -102,10 +101,10 @@ fn table_funcref_test() {
     assert_result!(i, is_null_funcref, 1, 0);
     assert_result!(i, is_null_funcref, 2, 0);
 
-    assert_error!(i, get_funcref, 2, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableOrElementAccessOutOfBounds);
-    assert_error!(i, get_funcref_2, 3, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableOrElementAccessOutOfBounds);
-    assert_error!(i, get_funcref, -1, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableOrElementAccessOutOfBounds);
-    assert_error!(i, get_funcref_2, -1, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableOrElementAccessOutOfBounds);
+    assert_error!(i, get_funcref, 2, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableAccessOutOfBounds);
+    assert_error!(i, get_funcref_2, 3, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableAccessOutOfBounds);
+    assert_error!(i, get_funcref, -1, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableAccessOutOfBounds);
+    assert_error!(i, get_funcref_2, -1, Result<FuncRefForInteropValue, RuntimeError>, i32, FuncRefForInteropValue, RuntimeError::TableAccessOutOfBounds);
 }
 
 #[test_log::test]

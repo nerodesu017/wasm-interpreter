@@ -15,7 +15,6 @@
 # limitations under the License.
 */
 use wasm::{validate, RuntimeError, RuntimeInstance};
-use wasm::Error as GeneralError;
 use wasm::value::{FuncAddr, FuncRefForInteropValue, Ref};
 
 macro_rules! get_func {
@@ -123,7 +122,7 @@ fn table_fill_test() {
     assert!(i.invoke::<i32, FuncRefForInteropValue>(get, 9).unwrap().get_ref().is_null());
 
 
-    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (8,FuncRefForInteropValue::new(Ref::Func(FuncAddr::new(Some(6)))).unwrap(),3)).err().unwrap() == RuntimeError::TableOrElementAccessOutOfBounds);
+    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (8,FuncRefForInteropValue::new(Ref::Func(FuncAddr::new(Some(6)))).unwrap(),3)).err().unwrap() == RuntimeError::TableAccessOutOfBounds);
 
 
     assert!(i.invoke::<i32, FuncRefForInteropValue>(get, 7).unwrap().get_ref().is_null());
@@ -131,8 +130,8 @@ fn table_fill_test() {
     assert!(i.invoke::<i32, FuncRefForInteropValue>(get, 9).unwrap().get_ref().is_null());
 
 
-    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (11,FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap(),0)).err().unwrap() == RuntimeError::TableOrElementAccessOutOfBounds);
+    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (11,FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap(),0)).err().unwrap() == RuntimeError::TableAccessOutOfBounds);
 
-    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (11,FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap(),10)).err().unwrap() == RuntimeError::TableOrElementAccessOutOfBounds);
+    assert!(i.invoke::<(i32,FuncRefForInteropValue,i32), ()>(fill, (11,FuncRefForInteropValue::new(Ref::Func(FuncAddr::null())).unwrap(),10)).err().unwrap() == RuntimeError::TableAccessOutOfBounds);
 }
 

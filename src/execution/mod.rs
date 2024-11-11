@@ -586,7 +586,8 @@ where
             data: data_sections,
             tables,
             elements,
-            passive_elem_indexes
+            passive_elem_indexes,
+            // types: validation_info.types.clone()
         }
     }
 }

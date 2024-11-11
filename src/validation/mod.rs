@@ -36,7 +36,7 @@ pub struct ValidationInfo<'bytecode> {
     pub(crate) data: Vec<DataSegment>,
     /// The start function which is automatically executed during instantiation
     pub(crate) start: Option<FuncIdx>,
-    pub(crate) elements: Vec<ElemType>
+    pub(crate) elements: Vec<ElemType>,
 }
 
 pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
@@ -181,7 +181,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             // bit 0 => diff between passive|declartive and active segment
             // bit 1 => presence of an explicit table index for an active segment
             // bit 2 => use of element type and element expressions instead of element kind and element indices
-            assert!((ty & 0b111) <= 0b111, "Element section is not encoded correctly. The type of this element is over 7 (0b111)");
+            assert!(ty <= 0b111, "Element section is not encoded correctly. The type of this element is over 7 (0b111)");
             // decide if we should
             let elem_mode = if ty & 0b001 == 0b001 {
                 if ty & 0b010 == 0b010 {
@@ -279,7 +279,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             &memories,
             &data_count,
             &tables,
-            &elements
+            &elements,
         )
     })?
     .unwrap_or_default();
@@ -353,7 +353,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     }
 
     debug!("Validation was successful");
-    
+
     Ok(ValidationInfo {
         wasm: wasm.into_inner(),
         types,
@@ -366,7 +366,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
         func_blocks,
         data: data_section,
         start,
-        elements
+        elements,
     })
 }
 

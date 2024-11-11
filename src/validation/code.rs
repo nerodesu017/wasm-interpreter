@@ -283,7 +283,7 @@ fn read_instructions(
                 let t = tables.get(table_idx).unwrap().et;
 
                 stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
-                stack.push_valtype(ValType::RefType(t.clone()));
+                stack.push_valtype(ValType::RefType(t));
             }
             TABLE_SET => {
                 let table_idx = wasm.read_var_u32()? as TableIdx;
@@ -870,7 +870,7 @@ fn read_instructions(
                             return Err(Error::TableIsNotDefined(table_idx));
                         }
 
-                        let t1 = tables[table_idx].et.clone();
+                        let t1 = tables[table_idx].et;
                         
                         if elements.len() <= elem_idx {
                             return Err(Error::ElementIsNotDefined(elem_idx));

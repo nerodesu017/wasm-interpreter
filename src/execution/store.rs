@@ -2,9 +2,8 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::iter;
 
-use crate::core::indices::{FuncIdx, TypeIdx};
+use crate::core::indices::TypeIdx;
 use crate::core::reader::span::Span;
-use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::{MemType, TableType, ValType};
 use crate::execution::value::{Ref, Value};
@@ -22,7 +21,8 @@ pub struct Store {
     pub data: Vec<DataInst>,
     pub tables: Vec<TableInst>,
     pub elements: Vec<ElemInst>,
-    pub passive_elem_indexes: Vec<usize>
+    pub passive_elem_indexes: Vec<usize>,
+    // pub types: Vec<FuncType>
 }
 
 #[derive(Clone, Debug)]
@@ -34,7 +34,7 @@ pub struct ElemInst {
 
 impl ElemInst {
     pub fn len(&self) -> usize {
-        return self.elem.len();
+        self.elem.len()
     }
 }
 

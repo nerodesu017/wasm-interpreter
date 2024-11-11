@@ -15,7 +15,6 @@
 # limitations under the License.
 */
 use wasm::value::{FuncAddr, FuncRefForInteropValue, Ref};
-use wasm::Error as GeneralError;
 use wasm::{validate, RuntimeError, RuntimeInstance};
 
 macro_rules! get_func {
@@ -88,13 +87,13 @@ fn table_grow_test() {
         )
         .err()
         .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
     assert!(
         i.invoke::<i32, FuncRefForInteropValue>(get, 0)
             .err()
             .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
 
     assert!(
@@ -137,13 +136,13 @@ fn table_grow_test() {
         )
         .err()
         .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
     assert!(
         i.invoke::<i32, FuncRefForInteropValue>(get, 1)
             .err()
             .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
 
     assert!(
@@ -206,13 +205,13 @@ fn table_grow_test() {
         )
         .err()
         .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
     assert!(
         i.invoke::<i32, FuncRefForInteropValue>(get, 5)
             .err()
             .unwrap()
-            == RuntimeError::TableOrElementAccessOutOfBounds
+            == RuntimeError::TableAccessOutOfBounds
     );
 }
 

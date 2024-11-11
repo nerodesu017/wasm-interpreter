@@ -6,7 +6,7 @@ use crate::core::reader::{WasmReadable, WasmReader};
 use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::{unreachable_validated, Error, Result};
 
-use super::{Limits, RefType, TableType};
+use super::TableType;
 
 #[derive(Debug)]
 pub struct Import {

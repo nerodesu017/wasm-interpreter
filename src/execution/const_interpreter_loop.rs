@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    assert_validated::UnwrapValidatedExt, core::reader::WasmReader, value::{FuncAddr, Ref}, value_stack::Stack, Error, NumType, ValType, Value
+    assert_validated::UnwrapValidatedExt, core::reader::WasmReader, value::{FuncAddr, Ref}, value_stack::Stack, NumType, ValType, Value
 };
 
 use super::store::FuncInst;
