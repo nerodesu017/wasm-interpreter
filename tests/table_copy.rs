@@ -38,3 +38,35 @@ macro_rules! assert_error {
         assert!(val.unwrap_err() == $err_type);
     };
 }
+
+
+#[test_log::test]
+fn table_fill_test() {
+    let w = r#"
+    (module
+      (table $t 10 funcref)
+    
+      (func (export "fill") (param $i i32) (param $r funcref) (param $n i32)
+        (table.fill $t (local.get $i) (local.get $r) (local.get $n))
+      )
+    
+      (func (export "fill-abbrev") (param $i i32) (param $r funcref) (param $n i32)
+        (table.fill $t (local.get $i) (local.get $r) (local.get $n))
+      )
+    
+      (func (export "get") (param $i i32) (result funcref)
+        (table.get $t (local.get $i))
+      )
+    )
+    "#;
+
+
+    let wasm_bytes = wat::parse_str(w).unwrap();
+    let validation_info = validate(&wasm_bytes).unwrap();
+    let mut i = RuntimeInstance::new(&validation_info).expect("instantiation failed");
+
+    let get = get_func!(i, "get");
+    let fill = get_func!(i, "fill");
+    let fill_abbrev = get_func!(i, "fill-abbrev");
+
+}
