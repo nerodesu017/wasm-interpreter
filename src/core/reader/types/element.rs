@@ -27,9 +27,6 @@ impl ElemType {
     pub fn ty(&self) -> RefType {
         self.init.ty()
     }
-    pub fn len(&self) -> usize {
-        self.init.len()
-    }
     pub fn to_ref_type(&self) -> RefType {
         match self.init {
             ElemItems::Exprs(rref, _) => rref.clone(),
@@ -51,11 +48,6 @@ impl ElemItems {
             Self::Exprs(rty, _) => rty.clone(),
         }
     }
-    // pub fn get_el(&self, i: usize) {
-    //     match self {
-    //         Self::Exprs(_, )
-    //     }
-    // }
     pub fn len(&self) -> usize {
         match self {
             Self::RefFuncs(v) => v.len(),

@@ -275,7 +275,6 @@ pub enum Ref {
 impl Ref {
     pub fn default_from_ref_type(rref: RefType) -> Self {
         match rref {
-            RefType::None(rref) => Self::default_from_ref_type(rref.to_ref_type()),
             RefType::ExternRef => Self::Extern(ExternAddr::default()),
             RefType::FuncRef => Self::Func(FuncAddr::default()),
         }
@@ -401,9 +400,6 @@ impl Value {
             ValType::NumType(NumType::F64) => Self::F64(F64(0.0_f64)),
             ValType::RefType(RefType::ExternRef) => Self::Ref(Ref::Extern(ExternAddr::null())),
             ValType::RefType(RefType::FuncRef) => Self::Ref(Ref::Func(FuncAddr::new(None))),
-            ValType::RefType(RefType::None(actual_ref_type)) => {
-                Self::default_from_ty(ValType::RefType(actual_ref_type.to_ref_type()))
-            }
             other => {
                 todo!("cannot determine type for {other:?} because this value is not supported yet")
             }

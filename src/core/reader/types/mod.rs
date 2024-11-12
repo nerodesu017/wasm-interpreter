@@ -2,6 +2,7 @@
 //!
 //! See: <https://webassembly.github.io/spec/core/binary/types.html>
 
+use alloc::format;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::u32;
@@ -84,7 +85,6 @@ impl WasmReadable for VecType {
 /// <https://webassembly.github.io/spec/core/binary/types.html#reference-types>
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RefType {
-    None(ActualRefType),
     FuncRef,
     ExternRef,
 }
@@ -97,55 +97,17 @@ impl Display for RefType {
             match self {
                 Self::ExternRef => "ExternRef",
                 Self::FuncRef => "FuncRef",
-                Self::None(rref) => format_args!("{}(NULL)", rref).as_str().unwrap(),
             }
         )
     }
 }
 
 impl RefType {
-    pub fn to_actual_ref_type(&self) -> ActualRefType {
-        match self {
-            RefType::ExternRef => ActualRefType::ExternRef,
-            RefType::FuncRef => ActualRefType::FuncRef,
-            RefType::None(rref) => rref.clone(),
-        }
-    }
-
     // TODO: we have to make sure they are NOT null Refs, but still, they are not valid ones as we cast them from RefTypes which don't hold addresses per-se
     pub fn to_null_ref(&self) -> Ref {
         match self {
             RefType::ExternRef => Ref::Extern(ExternAddr::null()),
             RefType::FuncRef => Ref::Func(FuncAddr::null()),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ActualRefType {
-    FuncRef,
-    ExternRef,
-}
-
-impl Display for ActualRefType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                ActualRefType::ExternRef => "ExternRef",
-                ActualRefType::FuncRef => "FuncRef",
-            }
-        )
-    }
-}
-
-impl ActualRefType {
-    pub fn to_ref_type(&self) -> RefType {
-        match self {
-            ActualRefType::ExternRef => RefType::ExternRef,
-            ActualRefType::FuncRef => RefType::FuncRef,
         }
     }
 }

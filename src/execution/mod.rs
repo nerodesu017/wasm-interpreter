@@ -424,7 +424,6 @@ where
                                 trace!("el.ty(): {}", el.ty());
                                 unimplemented!()
                             },
-                            crate::RefType::None(_) => unreachable!()
                         }
                     },
                     ElemMode::Active(active_elem) => {
@@ -476,8 +475,7 @@ where
                                     }.collect::<Vec<Ref>>()
                                 }
                             }
-                            crate::RefType::ExternRef => unimplemented!(),
-                            crate::RefType::None(_) => unreachable!()
+                            crate::RefType::ExternRef => todo!(),
                         };
                         
                         assert!(table.len() >= (offset + el.len()));
