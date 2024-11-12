@@ -1,3 +1,4 @@
+use alloc::collections::*;
 use alloc::vec::Vec;
 use read_constant_expression::read_constant_instructions;
 
@@ -164,6 +165,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
+    let mut referenced_functions = btree_set::BTreeSet::new();
     let elements: Vec<ElemType> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
         use crate::core::reader::types::element::*;
         use crate::RefType;
@@ -236,7 +238,11 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
                 )
             } else {
                 assert!(reftype_or_elemkind.is_none());
-                ElemItems::RefFuncs(wasm.read_vec(|w| w.read_var_u32())?)
+                ElemItems::RefFuncs(wasm.read_vec(|w| {
+                    let offset = w.read_var_u32()?;
+                    referenced_functions.insert(offset);
+                    Ok(offset)
+                })?)
             };
 
             let el = ElemType {init: items, mode: elem_mode};
@@ -280,6 +286,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
             &data_count,
             &tables,
             &elements,
+            &referenced_functions,
         )
     })?
     .unwrap_or_default();

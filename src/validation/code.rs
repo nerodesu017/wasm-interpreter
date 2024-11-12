@@ -1,9 +1,12 @@
-use alloc::vec::Vec;
+use alloc::collections::btree_set::BTreeSet;
 use alloc::vec;
+use alloc::vec::Vec;
 use core::iter;
 
 use crate::assert_validated::UnwrapValidatedExt;
-use crate::core::indices::{DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx, TypeIdx};
+use crate::core::indices::{
+    DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx, TypeIdx,
+};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
 use crate::core::reader::types::element::ElemType;
@@ -23,7 +26,8 @@ pub fn validate_code_section(
     memories: &[MemType],
     data_count: &Option<u32>,
     tables: &[TableType],
-    elements: &[ElemType]
+    elements: &[ElemType],
+    referenced_functions: &BTreeSet<u32>,
 ) -> Result<Vec<Span>> {
     assert_eq!(section_header.ty, SectionTy::Code);
 
@@ -56,7 +60,8 @@ pub fn validate_code_section(
             memories,
             data_count,
             tables,
-            elements
+            elements,
+            referenced_functions,
         )?;
 
         // Check if there were unread trailing instructions after the last END
@@ -106,7 +111,8 @@ fn read_instructions(
     memories: &[MemType],
     data_count: &Option<u32>,
     tables: &[TableType],
-    elements: &[ElemType]
+    elements: &[ElemType],
+    referenced_functions: &BTreeSet<u32>,
 ) -> Result<()> {
     // TODO we must terminate only if both we saw the final `end` and when we consumed all of the code span
     loop {
@@ -195,13 +201,12 @@ fn read_instructions(
             }
             CALL_INDIRECT => {
                 let type_idx = wasm.read_var_u32()? as TypeIdx;
-                
+
                 let table_idx = wasm.read_var_u32()? as TableIdx;
 
                 if tables.len() <= table_idx {
                     return Err(Error::TableIsNotDefined(table_idx));
                 }
-
 
                 let tab = tables.get(table_idx).unwrap_validated();
 
@@ -210,17 +215,19 @@ fn read_instructions(
                 }
 
                 if fn_types.len() <= type_idx {
-                    panic!("out of bounds access in function types for {} (type_idx)", type_idx);
+                    panic!(
+                        "out of bounds access in function types for {} (type_idx)",
+                        type_idx
+                    );
                 }
-                
+
                 let func_ty = &fn_types[type_idx];
-                
+
                 stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
 
                 for typ in func_ty.params.valtypes.iter().rev() {
                     stack.assert_pop_val_type(*typ)?;
                 }
-
 
                 for typ in func_ty.returns.valtypes.iter() {
                     stack.push_valtype(*typ);
@@ -766,13 +773,13 @@ fn read_instructions(
                 let funcs: Vec<()> = vec![(); fn_types.len()];
                 let func_idx = wasm.read_var_u32()? as FuncIdx;
                 if func_idx >= funcs.len() {
-                    panic!();
+                    panic!("REPLACE ME!");
                 }
-                let references: Vec<FuncIdx> = vec![];
-                if !references.contains(&func_idx) {
-                    panic!();
+
+                if !referenced_functions.contains(&(func_idx as u32)) {
+                    panic!("REPLACE ME!")
                 }
-                
+
                 stack.push_valtype(ValType::RefType(RefType::FuncRef));
                 // unimplemented!();
             }
@@ -871,13 +878,13 @@ fn read_instructions(
                         }
 
                         let t1 = tables[table_idx].et;
-                        
+
                         if elements.len() <= elem_idx {
                             return Err(Error::ElementIsNotDefined(elem_idx));
                         }
 
                         let t2 = elements[elem_idx].to_ref_type();
-                        
+
                         if t1 != t2 {
                             return Err(Error::DifferentRefTypes(t1, t2));
                         }
@@ -918,7 +925,7 @@ fn read_instructions(
                     }
                     TABLE_GROW => {
                         let table_idx = wasm.read_var_u32()? as TableIdx;
-                        
+
                         if tables.len() <= table_idx {
                             return Err(Error::TableIsNotDefined(table_idx));
                         }
@@ -932,7 +939,7 @@ fn read_instructions(
                     }
                     TABLE_SIZE => {
                         let table_idx = wasm.read_var_u32()? as TableIdx;
-                        
+
                         if tables.len() <= table_idx {
                             return Err(Error::TableIsNotDefined(table_idx));
                         }
@@ -941,7 +948,7 @@ fn read_instructions(
                     }
                     TABLE_FILL => {
                         let table_idx = wasm.read_var_u32()? as TableIdx;
-                        
+
                         if tables.len() <= table_idx {
                             return Err(Error::TableIsNotDefined(table_idx));
                         }

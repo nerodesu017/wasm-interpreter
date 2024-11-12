@@ -217,7 +217,6 @@ fn table_grow_test() {
 
 // ... existing code ...
 
-#[ignore = "declarative elements not yet implemented"]
 #[test_log::test]
 fn table_grow_outside_i32_range() {
     let w = r#"
