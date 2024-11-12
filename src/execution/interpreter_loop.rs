@@ -272,26 +272,18 @@ pub(super) fn run<H: HookSet>(
             TABLE_SET => {
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
 
-                let tab = store.tables.get(table_idx).unwrap_validated();
+                let tab = &mut store.tables.get_mut(table_idx).unwrap_validated();
 
                 let val: Ref = stack.pop_value(ValType::RefType(tab.ty.et)).into();
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
-                if i as usize >= tab.len() {
-                    return Err(RuntimeError::TableAccessOutOfBounds);
-                }
-
-                store
-                    .tables
-                    .get_mut(table_idx)
-                    .unwrap_validated()
-                    .elem
+                tab.elem
                     .get_mut(i as usize)
+                    .ok_or(RuntimeError::TableAccessOutOfBounds)
                     .and_then(|r| {
                         *r = val;
-                        Some(())
-                    })
-                    .ok_or(RuntimeError::TableAccessOutOfBounds)?;
+                        Ok(())
+                    })?;
                 trace!(
                     "Instruction: table.set '{}' [{} {}] -> []",
                     table_idx,
@@ -2421,9 +2413,9 @@ pub(super) fn run<H: HookSet>(
                         let tab_y_elem_len =
                             store.tables.get(table_y_idx).unwrap_validated().elem.len();
 
-                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
-                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // size
+                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // source
+                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // destination
 
                         if s + n > tab_y_elem_len as u32 || d + n > tab_x_elem_len as u32 {
                             return Err(RuntimeError::TableAccessOutOfBounds);
@@ -2517,17 +2509,24 @@ pub(super) fn run<H: HookSet>(
 
                         let max = tab.ty.lim.max.unwrap();
 
-                        if sz + n > max {
-                            stack.push_value(Value::I32(u32::MAX));
-                        } else {
-                            store
-                                .tables
-                                .get_mut(table_idx)
-                                .unwrap_validated()
-                                .elem
-                                .extend(vec![val; n as usize]);
+                        let final_size = sz.checked_add(n);
 
-                            stack.push_value(Value::I32(sz));
+                        match final_size {
+                            Some(final_size) => {
+                                if final_size > max {
+                                    stack.push_value(Value::I32(u32::MAX))
+                                } else {
+                                    store
+                                        .tables
+                                        .get_mut(table_idx)
+                                        .unwrap_validated()
+                                        .elem
+                                        .extend(vec![val; n as usize]);
+
+                                    stack.push_value(Value::I32(sz));
+                                }
+                            }
+                            _ => stack.push_value(Value::I32(u32::MAX)),
                         }
                     }
                     TABLE_SIZE => {
@@ -2547,16 +2546,20 @@ pub(super) fn run<H: HookSet>(
                         let tab = store.tables.get(table_idx).unwrap_validated();
                         let ty = tab.ty.et;
 
-                        let n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // len
                         let val: Ref = stack.pop_value(ValType::RefType(ty)).into();
-                        let i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
+                        let i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // dst
+
+                        let end = (i as usize)
+                            .checked_add(n as usize)
+                            .ok_or(RuntimeError::TableAccessOutOfBounds)?;
 
                         store
                             .tables
                             .get_mut(table_idx)
                             .unwrap_validated()
                             .elem
-                            .get_mut(i as usize..((i + n) as usize))
+                            .get_mut(i as usize..end)
                             .ok_or(RuntimeError::TableAccessOutOfBounds)?
                             .fill(val);
 
