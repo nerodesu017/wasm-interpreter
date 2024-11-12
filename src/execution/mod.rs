@@ -1,3 +1,5 @@
+use core::cell::RefCell;
+
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::vec;
@@ -345,11 +347,11 @@ where
         };
 
         // https://webassembly.github.io/spec/core/exec/modules.html#tables
-        let mut tables: Vec<TableInst> = validation_info
+        let tables: Vec<RefCell<TableInst>> = validation_info
             .tables
             .iter()
             .map(|ty| TableInst::new(*ty))
-            .collect();
+            .map(|t| RefCell::new(t)).collect();
 
         // let elements: Vec<ElemType> = validation_info
         //     .elements
@@ -370,7 +372,7 @@ where
                     ElemMode::Passive => {
                         passive_elem_indexes.push(i);
                         // can be copied at runtime
-                        match el.ty() {
+                        Some(match el.ty() {
                             crate::RefType::FuncRef => {
                                 ElemInst {
                                     ty: el.ty(),
@@ -424,7 +426,7 @@ where
                                 trace!("el.ty(): {}", el.ty());
                                 unimplemented!()
                             },
-                        }
+                        })
                     },
                     ElemMode::Active(active_elem) => {
                         // copies itself right now, when instantiating
@@ -434,7 +436,7 @@ where
                         //     return Err(Error::TableIsNotDefined(table_idx));
                         // }
 
-                        let table = tables.get_mut(table_idx).unwrap_validated();
+                        let mut table = tables[table_idx].borrow_mut();
 
                         let value = {
                             let mut wasm = WasmReader::new(validation_info.wasm);
@@ -484,13 +486,14 @@ where
                             table.elem[i + offset] = rref.clone();
                         });
 
-                        el
+                        Some(el)
                     }
                     ElemMode::Declarative => {
-                        unimplemented!()
+                        None
                     }
                 }
             })
+            .filter_map(|el| el)
             .collect();
 
         let mut memory_instances: Vec<MemInst> = validation_info

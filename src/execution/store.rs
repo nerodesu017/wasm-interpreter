@@ -19,7 +19,7 @@ pub struct Store {
     pub mems: Vec<MemInst>,
     pub globals: Vec<GlobalInst>,
     pub data: Vec<DataInst>,
-    pub tables: Vec<TableInst>,
+    pub tables: Vec<core::cell::RefCell<TableInst>>,
     pub elements: Vec<ElemInst>,
     pub passive_elem_indexes: Vec<usize>,
     // pub types: Vec<FuncType>

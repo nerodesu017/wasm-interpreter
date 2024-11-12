@@ -180,7 +180,7 @@ pub(super) fn run<H: HookSet>(
                 let type_idx = wasm.read_var_u32().unwrap_validated() as TypeIdx;
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
 
-                let tab = store.tables.get(table_idx).unwrap_validated();
+                let tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
                 let func_ty = types.get(type_idx).unwrap_validated();
 
                 let i: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -252,7 +252,7 @@ pub(super) fn run<H: HookSet>(
             TABLE_GET => {
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
 
-                let tab = store.tables.get(table_idx).unwrap_validated();
+                let tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
 
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
 
@@ -272,7 +272,7 @@ pub(super) fn run<H: HookSet>(
             TABLE_SET => {
                 let table_idx = wasm.read_var_u32().unwrap_validated() as TableIdx;
 
-                let tab = &mut store.tables.get_mut(table_idx).unwrap_validated();
+                let mut tab = store.tables[table_idx].borrow_mut();
 
                 let val: Ref = stack.pop_value(ValType::RefType(tab.ty.et)).into();
                 let i: i32 = stack.pop_value(ValType::NumType(NumType::I32)).into();
@@ -2368,7 +2368,7 @@ pub(super) fn run<H: HookSet>(
                         let s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // offset
                         let d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // dst
 
-                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let mut tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
                         let tab_len = tab.len();
 
                         let elem_len = if store.passive_elem_indexes.contains(&elem_idx) {
@@ -2392,8 +2392,7 @@ pub(super) fn run<H: HookSet>(
 
                         let elem = store.elements.get(elem_idx).unwrap_validated();
 
-                        let dest = &mut store.tables.get_mut(table_idx).unwrap_validated().elem
-                            [d as usize..];
+                        let dest = &mut tab.elem[d as usize..];
                         let src = &elem.elem[s as usize..s as usize + n as usize];
                         dest[..src.len()].copy_from_slice(src);
                     }
@@ -2408,84 +2407,45 @@ pub(super) fn run<H: HookSet>(
                         let table_x_idx = wasm.read_var_u32().unwrap_validated() as usize;
                         let table_y_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        let tab_x_elem_len =
-                            store.tables.get(table_x_idx).unwrap_validated().elem.len();
-                        let tab_y_elem_len =
-                            store.tables.get(table_y_idx).unwrap_validated().elem.len();
+                        let tab_x_elem_len = store.tables[table_x_idx].borrow().elem.len();
+                        let tab_y_elem_len = store.tables[table_y_idx].borrow().elem.len();
 
-                        let mut n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // size
-                        let mut s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // source
-                        let mut d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // destination
+                        let n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // size
+                        let s: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // source
+                        let d: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // destination
 
-                        if s + n > tab_y_elem_len as u32 || d + n > tab_x_elem_len as u32 {
-                            return Err(RuntimeError::TableAccessOutOfBounds);
-                        }
-
-                        // unsafe {
-                        //     let dest_table_ptr: *mut TableInst =
-                        //         store.tables.get_mut(table_x_idx).unwrap_validated();
-                        //     let src_table_ptr: *mut TableInst =
-                        //         store.tables.get_mut(table_y_idx).unwrap_validated();
-
-                        //     let dest_table: &mut TableInst = &mut *dest_table_ptr;
-                        //     let src_table: &mut TableInst = &mut *src_table_ptr;
-
-                        //     if d <= s {
-                        //         let src = &src_table.elem[s as usize..s as usize + n as usize];
-                        //         let dest =
-                        //             &mut dest_table.elem[d as usize..d as usize + n as usize];
-                        //         dest.copy_from_slice(src);
-                        //     } else {
-                        //         let src = &src_table.elem[(s + n - 1) as usize - n as usize + 1
-                        //             ..(s + n - 1) as usize + 1];
-                        //         let dest = &mut dest_table.elem[(d + n - 1) as usize - n as usize
-                        //             + 1
-                        //             ..(d + n - 1) as usize + 1];
-                        //         dest.copy_from_slice(src);
-                        //     }
-                        // }
-
-                        while n > 0 {
-                            if d <= s {
-                                #[allow(unused_labels)]
-                                let t = 'TABLE_GET: {
-                                    store
-                                        .tables
-                                        .get(table_y_idx)
-                                        .unwrap_validated()
-                                        .elem
-                                        .get(s as usize)
-                                        .unwrap_validated()
-                                };
-
-                                #[allow(unused_labels)]
-                                'TABLE_SET: {
-                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem
-                                        [d as usize] = *t;
-                                }
-
-                                d += 1;
-                                s += 1;
-                            } else {
-                                #[allow(unused_labels)]
-                                let t = 'TABLE_GET: {
-                                    store
-                                        .tables
-                                        .get(table_y_idx)
-                                        .unwrap_validated()
-                                        .elem
-                                        .get((s + n - 1) as usize)
-                                        .unwrap_validated()
-                                };
-
-                                #[allow(unused_labels)]
-                                'TABLE_SET: {
-                                    store.tables.get_mut(table_x_idx).unwrap_validated().elem
-                                        [(d + n - 1) as usize] = *t;
+                        let src_res = match s.checked_add(n) {
+                            Some(res) => {
+                                if res > tab_y_elem_len as u32 {
+                                    return Err(RuntimeError::TableAccessOutOfBounds);
+                                } else {
+                                    res as usize
                                 }
                             }
+                            _ => return Err(RuntimeError::TableAccessOutOfBounds),
+                        };
 
-                            n -= 1;
+                        let dst_res = match d.checked_add(n) {
+                            Some(res) => {
+                                if res > tab_x_elem_len as u32 {
+                                    return Err(RuntimeError::TableAccessOutOfBounds);
+                                } else {
+                                    res as usize
+                                }
+                            }
+                            _ => return Err(RuntimeError::TableAccessOutOfBounds),
+                        };
+
+                        if table_x_idx == table_y_idx {
+                            let mut tab = store.tables[table_x_idx].borrow_mut();
+                            tab.elem
+                                .as_mut_slice()
+                                .copy_within(s as usize..src_res, d as usize); // }
+                        } else {
+                            let mut table_x = store.tables[table_x_idx].borrow_mut();
+                            let table_y = store.tables[table_y_idx].borrow();
+                            table_x.elem[d as usize..dst_res]
+                                .copy_from_slice(&table_y.elem[s as usize..src_res]);
                         }
 
                         trace!(
@@ -2500,7 +2460,7 @@ pub(super) fn run<H: HookSet>(
                     TABLE_GROW => {
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let mut tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
 
                         let sz = tab.elem.len() as u32;
 
@@ -2516,12 +2476,7 @@ pub(super) fn run<H: HookSet>(
                                 if final_size > max {
                                     stack.push_value(Value::I32(u32::MAX))
                                 } else {
-                                    store
-                                        .tables
-                                        .get_mut(table_idx)
-                                        .unwrap_validated()
-                                        .elem
-                                        .extend(vec![val; n as usize]);
+                                    tab.elem.extend(vec![val; n as usize]);
 
                                     stack.push_value(Value::I32(sz));
                                 }
@@ -2532,7 +2487,7 @@ pub(super) fn run<H: HookSet>(
                     TABLE_SIZE => {
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
 
                         let sz = tab.elem.len() as u32;
 
@@ -2543,7 +2498,7 @@ pub(super) fn run<H: HookSet>(
                     TABLE_FILL => {
                         let table_idx = wasm.read_var_u32().unwrap_validated() as usize;
 
-                        let tab = store.tables.get(table_idx).unwrap_validated();
+                        let mut tab = store.tables.get(table_idx).unwrap_validated().borrow_mut();
                         let ty = tab.ty.et;
 
                         let n: u32 = stack.pop_value(ValType::NumType(NumType::I32)).into(); // len
@@ -2554,11 +2509,7 @@ pub(super) fn run<H: HookSet>(
                             .checked_add(n as usize)
                             .ok_or(RuntimeError::TableAccessOutOfBounds)?;
 
-                        store
-                            .tables
-                            .get_mut(table_idx)
-                            .unwrap_validated()
-                            .elem
+                        tab.elem
                             .get_mut(i as usize..end)
                             .ok_or(RuntimeError::TableAccessOutOfBounds)?
                             .fill(val);
