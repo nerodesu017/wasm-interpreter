@@ -23,7 +23,7 @@ use crate::{
         },
     },
     locals::Locals,
-    store::{DataInst, Store, TableInst},
+    store::{DataInst, Store},
     value::{self, FuncAddr, Ref},
     value_stack::Stack,
     Limits, NumType, RefType, RuntimeError, ValType, Value,

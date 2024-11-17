@@ -2,14 +2,13 @@
 //!
 //! See: <https://webassembly.github.io/spec/core/binary/types.html>
 
-use alloc::format;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::u32;
 
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::execution::assert_validated::UnwrapValidatedExt;
-use crate::value::{ExternAddr, FuncAddr, Ref, RefValueTy};
+use crate::value::{ExternAddr, FuncAddr, Ref};
 use crate::Result;
 use crate::{unreachable_validated, Error};
 

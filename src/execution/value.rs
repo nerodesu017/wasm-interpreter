@@ -8,7 +8,6 @@ use crate::core::reader::types::{NumType, ValType};
 use crate::execution::assert_validated::UnwrapValidatedExt;
 use crate::{unreachable_validated, Error, RefType, Result};
 
-
 #[derive(Clone, Debug, Copy, PartialOrd)]
 pub struct F32(pub f32);
 
@@ -266,7 +265,6 @@ pub enum Value {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
 pub enum Ref {
     Func(FuncAddr),
     Extern(ExternAddr),
@@ -283,14 +281,14 @@ impl Ref {
     pub fn is_null(&self) -> bool {
         match self {
             Self::Extern(extern_addr) => extern_addr.is_null,
-            Self::Func(func_addr) => func_addr.is_null
+            Self::Func(func_addr) => func_addr.is_null,
         }
     }
 
     pub fn is_specific_func(&self, func_id: u32) -> bool {
         match self {
             Self::Func(func_addr) => !func_addr.is_null && func_addr.addr == func_id as usize,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }
@@ -357,13 +355,22 @@ impl Display for FuncAddr {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ExternAddr {
     pub is_null: bool,
-    pub addr: (),
+    pub addr: usize,
 }
 
 impl ExternAddr {
+    pub fn new(addr: Option<usize>) -> Self {
+        match addr {
+            None => Self::null(),
+            Some(u) => Self {
+                addr: u,
+                is_null: false,
+            },
+        }
+    }
     pub fn null() -> Self {
         Self {
-            addr: (),
+            addr: 0,
             is_null: true,
         }
     }
@@ -758,7 +765,7 @@ impl From<Value> for Ref {
             Value::Ref(rref) => {
                 // trace!("From<Value> for Ref: {:?}", value);
                 rref
-            },
+            }
             _ => unreachable!(),
         }
     }

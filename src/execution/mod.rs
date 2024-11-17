@@ -9,7 +9,7 @@ use function_ref::FunctionRef;
 use interpreter_loop::run;
 use locals::Locals;
 use store::{DataInst, ElemInst, TableInst};
-use value::{FuncAddr, Ref};
+use value::{ExternAddr, FuncAddr, Ref};
 use value_stack::Stack;
 
 use crate::core::reader::types::export::{Export, ExportDesc};
@@ -21,7 +21,7 @@ use crate::execution::store::{FuncInst, GlobalInst, MemInst, Store};
 use crate::execution::value::Value;
 use crate::validation::code::read_declared_locals;
 use crate::value::InteropValueList;
-use crate::{Error, RuntimeError, ValType, ValidationInfo};
+use crate::{RuntimeError, ValType, ValidationInfo};
 
 // TODO
 pub(crate) mod assert_validated;
@@ -422,9 +422,51 @@ where
                                 }
                             }
                             crate::RefType::ExternRef => {
-                                trace!("{:?}", el);
-                                trace!("el.ty(): {}", el.ty());
-                                unimplemented!()
+                                ElemInst {
+                                    ty: el.ty(),
+                                    elem: match &el.init {
+                                        ElemItems::Exprs(_, sub_programs) => {
+                                            sub_programs.iter().map(|sub_program| {
+                                                let value = {
+                                                    let mut wasm = WasmReader::new(validation_info.wasm);
+                                                    wasm.move_start_to(*sub_program).unwrap_validated();
+                                                    let mut stack = Stack::new();
+                                                    // TODO: fully implement run_const
+                                                    run_const(wasm, &mut stack, (), &function_instances);
+                                                    let value = stack.peek_unknown_value();
+                                                    if value.is_none() {
+                                                        panic!("No value on the stack for element segment offset");
+                                                    }
+                                                    value.unwrap()
+                                                };
+
+                                                let offset: u32 = match value {
+                                                    // Value::I32(val) => val,
+                                                    // Value::I64(val) => {
+                                                    //     if val > u32::MAX as u64 {
+                                                    //         panic!("i64 value for data segment offset is out of reach")
+                                                    //     }
+                                                    //     val as u32
+                                                    // }
+                                                    // INFO: no need to implement all of them, it's either i32 or i64, otherwise offset is WRONG
+                                                    // INFO2: wait, we might need globals handling, now that I think about it, but make it return an u32 anyways
+                                                    Value::Ref(rref) => {
+                                                        match rref {
+                                                            Ref::Func(_) => unreachable!(),
+                                                            Ref::Extern(extern_addr) => extern_addr.addr as u32
+                                                        }
+                                                    }
+                                                    _ => {
+                                                        unreachable!()
+                                                    },
+                                                };
+
+                                                Ref::Extern(ExternAddr::new(Some(offset as usize)))
+                                            }).collect::<Vec<Ref>>()
+                                        },
+                                        ElemItems::RefFuncs(_) => panic!("RefFuncs allowed only for Functions!")
+                                    }
+                                }
                             },
                         })
                     },
@@ -472,12 +514,85 @@ where
                                 ElemInst {
                                     ty: el.ty(),
                                     elem: match &el.init {
-                                        ElemItems::Exprs(_, _) => unreachable!(),
-                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))})
-                                    }.collect::<Vec<Ref>>()
+                                        // ElemItems::Exprs(_, _) => unreachable!(),
+                                        ElemItems::Exprs(_, exprs) => {
+                                            (*exprs).iter().map(|expr| {
+                                                let value = {
+                                                    let mut wasm = WasmReader::new(validation_info.wasm);
+                                                    wasm.move_start_to(*expr).unwrap_validated();
+                                                    let mut stack = Stack::new();
+                                                    // TODO: fully implement run_const
+                                                    run_const(wasm, &mut stack, (), &vec![]);
+                                                    let value = stack.peek_unknown_value();
+                                                    if value.is_none() {
+                                                        panic!("No value on the stack for element segment offset");
+                                                    }
+                                                    value.unwrap()
+                                                };
+
+                                                // TODO: this shouldn't be a simple value, should it? I mean it can't be, but it can also be any type of ValType
+                                                // TODO: also, do we need to forcefully make it i32?
+                                                let offset: u32 = match value {
+                                                    Value::I32(val) => val,
+                                                    Value::I64(val) => {
+                                                        if val > u32::MAX as u64 {
+                                                            panic!("i64 value for data segment offset is out of reach")
+                                                        }
+                                                        val as u32
+                                                    }
+                                                    // INFO: no need to implement all of them, it's either i32 or i64, otherwise offset is WRONG
+                                                    // INFO2: wait, we might need globals handling, now that I think about it, but make it return an u32 anyways
+                                                    _ => unreachable!(),
+                                                };
+                                                let offset: usize = offset as usize;
+                                                Ref::Func(FuncAddr::new(Some(offset)))
+                                            }).collect::<Vec<Ref>>()
+                                        },
+                                        ElemItems::RefFuncs(func_idxs) => func_idxs.iter().map(|func_idx| {Ref::Func(FuncAddr::new(Some(*func_idx as usize)))}).collect::<Vec<Ref>>()
+                                    }
                                 }
                             }
-                            crate::RefType::ExternRef => todo!(),
+                            crate::RefType::ExternRef => {
+                                ElemInst {
+                                    ty: el.ty(),
+                                    elem: match &el.init {
+                                        ElemItems::Exprs(_, exprs) => {
+                                            (*exprs).iter().map(|expr| {
+                                                let value = {
+                                                    let mut wasm = WasmReader::new(validation_info.wasm);
+                                                    wasm.move_start_to(*expr).unwrap_validated();
+                                                    let mut stack = Stack::new();
+                                                    // TODO: fully implement run_const
+                                                    run_const(wasm, &mut stack, (), &vec![]);
+                                                    let value = stack.peek_unknown_value();
+                                                    if value.is_none() {
+                                                        panic!("No value on the stack for element segment offset");
+                                                    }
+                                                    value.unwrap()
+                                                };
+
+                                                // TODO: this shouldn't be a simple value, should it? I mean it can't be, but it can also be any type of ValType
+                                                // TODO: also, do we need to forcefully make it i32?
+                                                let offset: u32 = match value {
+                                                    Value::I32(val) => val,
+                                                    Value::I64(val) => {
+                                                        if val > u32::MAX as u64 {
+                                                            panic!("i64 value for data segment offset is out of reach")
+                                                        }
+                                                        val as u32
+                                                    }
+                                                    // INFO: no need to implement all of them, it's either i32 or i64, otherwise offset is WRONG
+                                                    // INFO2: wait, we might need globals handling, now that I think about it, but make it return an u32 anyways
+                                                    _ => unreachable!(),
+                                                };
+                                                let offset: usize = offset as usize;
+                                                Ref::Extern(ExternAddr::new(Some(offset)))
+                                            }).collect::<Vec<Ref>>()
+                                        },
+                                        ElemItems::RefFuncs(_) => unreachable!()
+                                    }
+                                }
+                            },
                         };
                         
                         assert!(table.len() >= (offset + el.len()));
