@@ -1,15 +1,21 @@
+use alloc::collections::btree_set::BTreeSet;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::iter;
 
-use crate::core::indices::{DataIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx};
+use crate::assert_validated::UnwrapValidatedExt;
+use crate::core::indices::{
+    DataIdx, ElemIdx, FuncIdx, GlobalIdx, LocalIdx, MemIdx, TableIdx, TypeIdx,
+};
 use crate::core::reader::section_header::{SectionHeader, SectionTy};
 use crate::core::reader::span::Span;
+use crate::core::reader::types::element::ElemType;
 use crate::core::reader::types::global::Global;
 use crate::core::reader::types::memarg::MemArg;
-use crate::core::reader::types::{FuncType, MemType, NumType, ValType};
+use crate::core::reader::types::{FuncType, MemType, NumType, TableType, ValType};
 use crate::core::reader::{WasmReadable, WasmReader};
 use crate::validation_stack::ValidationStack;
-use crate::{Error, Result};
+use crate::{Error, RefType, Result};
 
 pub fn validate_code_section(
     wasm: &mut WasmReader,
@@ -19,6 +25,9 @@ pub fn validate_code_section(
     globals: &[Global],
     memories: &[MemType],
     data_count: &Option<u32>,
+    tables: &[TableType],
+    elements: &[ElemType],
+    referenced_functions: &BTreeSet<u32>,
 ) -> Result<Vec<Span>> {
     assert_eq!(section_header.ty, SectionTy::Code);
 
@@ -50,6 +59,9 @@ pub fn validate_code_section(
             type_idx_of_fn,
             memories,
             data_count,
+            tables,
+            elements,
+            referenced_functions,
         )?;
 
         // Check if there were unread trailing instructions after the last END
@@ -98,6 +110,9 @@ fn read_instructions(
     type_idx_of_fn: &[usize],
     memories: &[MemType],
     data_count: &Option<u32>,
+    tables: &[TableType],
+    elements: &[ElemType],
+    referenced_functions: &BTreeSet<u32>,
 ) -> Result<()> {
     // TODO we must terminate only if both we saw the final `end` and when we consumed all of the code span
     loop {
@@ -184,6 +199,40 @@ fn read_instructions(
                     stack.push_valtype(*typ);
                 }
             }
+            CALL_INDIRECT => {
+                let type_idx = wasm.read_var_u32()? as TypeIdx;
+
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let tab = tables.get(table_idx).unwrap_validated();
+
+                if tab.et != RefType::FuncRef {
+                    return Err(Error::WrongRefTypeForInteropValue(tab.et, RefType::FuncRef));
+                }
+
+                if fn_types.len() <= type_idx {
+                    panic!(
+                        "out of bounds access in function types for {} (type_idx)",
+                        type_idx
+                    );
+                }
+
+                let func_ty = &fn_types[type_idx];
+
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+
+                for typ in func_ty.params.valtypes.iter().rev() {
+                    stack.assert_pop_val_type(*typ)?;
+                }
+
+                for typ in func_ty.returns.valtypes.iter() {
+                    stack.push_valtype(*typ);
+                }
+            }
             // unreachable: [t1*] -> [t2*]
             UNREACHABLE => {
                 stack.make_unspecified();
@@ -230,6 +279,30 @@ fn read_instructions(
                 }
 
                 stack.assert_pop_val_type(global.ty.ty)?;
+            }
+            TABLE_GET => {
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let t = tables.get(table_idx).unwrap().et;
+
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                stack.push_valtype(ValType::RefType(t));
+            }
+            TABLE_SET => {
+                let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                if tables.len() <= table_idx {
+                    return Err(Error::TableIsNotDefined(table_idx));
+                }
+
+                let t = tables.get(table_idx).unwrap().et;
+
+                stack.assert_pop_ref_type(Some(t))?;
+                stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
             }
             I32_LOAD => {
                 if memories.is_empty() {
@@ -680,10 +753,35 @@ fn read_instructions(
                 stack.push_valtype(ValType::NumType(NumType::F64));
             }
 
-            REF_IS_NULL => {
-                stack.assert_pop_ref_type()?;
+            REF_NULL => {
+                let reftype = RefType::read(wasm)?;
+                // at validation-time we don't really care if it's null or not
+                stack.push_valtype(ValType::RefType(reftype));
+            }
 
+            REF_IS_NULL => {
+                stack.assert_pop_ref_type(None)?;
                 stack.push_valtype(ValType::NumType(NumType::I32));
+            }
+
+            // TODO finish this
+            // https://webassembly.github.io/spec/core/valid/instructions.html#xref-syntax-instructions-syntax-instr-ref-mathsf-ref-func-x
+            REF_FUNC => {
+                // We will be making use of fn_types to check for length of possible functions
+                // Is this okay?
+                // I don't know
+                let funcs: Vec<()> = vec![(); fn_types.len()];
+                let func_idx = wasm.read_var_u32()? as FuncIdx;
+                if func_idx >= funcs.len() {
+                    panic!("REPLACE ME!");
+                }
+
+                if !referenced_functions.contains(&(func_idx as u32)) {
+                    panic!("REPLACE ME!")
+                }
+
+                stack.push_valtype(ValType::RefType(RefType::FuncRef));
+                // unimplemented!();
             }
 
             FC_EXTENSIONS => {
@@ -769,6 +867,96 @@ fn read_instructions(
                         }
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    TABLE_INIT => {
+                        let elem_idx = wasm.read_var_u32()? as ElemIdx;
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        let t1 = tables[table_idx].et;
+
+                        if elements.len() <= elem_idx {
+                            return Err(Error::ElementIsNotDefined(elem_idx));
+                        }
+
+                        let t2 = elements[elem_idx].to_ref_type();
+
+                        if t1 != t2 {
+                            return Err(Error::DifferentRefTypes(t1, t2));
+                        }
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        // INFO: wasmtime checks for this value to be an index in the tables array, interesting
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    ELEM_DROP => {
+                        let elem_idx = wasm.read_var_u32()? as ElemIdx;
+
+                        if elements.len() <= elem_idx {
+                            return Err(Error::ElementIsNotDefined(elem_idx));
+                        }
+                    }
+                    TABLE_COPY => {
+                        let table_x_idx = wasm.read_var_u32()? as TableIdx;
+                        let table_y_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_x_idx {
+                            return Err(Error::TableIsNotDefined(table_x_idx));
+                        }
+
+                        if tables.len() <= table_y_idx {
+                            return Err(Error::TableIsNotDefined(table_y_idx));
+                        }
+
+                        let t1 = tables.get(table_x_idx).unwrap_validated().et;
+                        let t2 = tables.get(table_y_idx).unwrap_validated().et;
+
+                        if t1 != t2 {
+                            return Err(Error::DifferentRefTypes(t1, t2));
+                        }
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                    }
+                    TABLE_GROW => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        let t = tables.get(table_idx).unwrap_validated().et;
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_ref_type(Some(t))?;
+
+                        stack.push_valtype(ValType::NumType(NumType::I32));
+                    }
+                    TABLE_SIZE => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        stack.push_valtype(ValType::NumType(NumType::I32));
+                    }
+                    TABLE_FILL => {
+                        let table_idx = wasm.read_var_u32()? as TableIdx;
+
+                        if tables.len() <= table_idx {
+                            return Err(Error::TableIsNotDefined(table_idx));
+                        }
+
+                        let t = tables.get(table_idx).unwrap_validated().et;
+
+                        stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
+                        stack.assert_pop_ref_type(Some(t))?;
                         stack.assert_pop_val_type(ValType::NumType(NumType::I32))?;
                     }
                     _ => {
