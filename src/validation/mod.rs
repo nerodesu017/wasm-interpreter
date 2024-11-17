@@ -162,89 +162,6 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
-    // #region element
-    // let _: Option<()> = handle_section(&mut wasm, &mut header, SectionTy::Element, |wasm, _| {
-    //     let mut elem_vec: Vec<()> = Vec::new();
-    //     // https://webassembly.github.io/spec/core/binary/modules.html#element-section
-    //      // TODO: replace with wasm.read_vec in the future
-    //      let vec_length = wasm.read_var_u32().unwrap();
-    //      trace!("Element sections no.: {}", vec_length);
-    //      for i in 0..vec_length {
-    //         let ttype = wasm.read_var_u32().unwrap();
-    //         // https://webassembly.github.io/spec/core/syntax/modules.html#element-segments
-    //         // https://webassembly.github.io/spec/core/binary/modules.html#element-section
-    //         // We can treat the ttype as a 3bit integer
-    //         // If it's not 3 bits I am not sure what to do
-    //         // bit 0 => diff between passive|declartive and active segment
-    //         // bit 1 => presence of an explicit table index for an active segment
-    //         // bit 2 => use of element type and element expressions instead of element kind and element indices
-    //         if (ttype & 0b111) > 0b111 {
-    //             // what should we do?
-    //             // error or is fine?
-    //             // should be unspecified
-    //         }
-    //         // decide if we should
-    //         // let elem_mode = if ttype & 0b001 == 0b001 {
-    //         //     // passive or declarative
-    //         //     if ttype & 0b010 == 0b010 {
-    //         //         ElemMode::Declarative
-    //         //     } else {
-    //         //         ElemMode::Passive
-    //         //     }
-    //         // } else {
-    //         //     if ttype & 0b010 == 0b010 {
-    //         //         let table_idx = wasm.read_var_u32().unwrap();
-    //         //         let bytes = Vec::new();
-    //         //         bytes.push(wasm.read_var_u32().unwrap());
-    //         //         while bytes.last().unwrap() != END {
-    //         //             bytes.push(wasm.read_var_u32().unwrap());
-    //         //         }
-    //         //         ElemMode::Active(ActiveElem {
-    //         //             table: table_idx,
-    //         //             offset: bytes
-    //         //         })
-    //         //     } else {
-    //         //     }
-    //         // }
-    //         match ttype {
-    //             0 => {
-    //                 let expr = {
-    //                     // TODO: actually verify this expression
-    //                     let mut const_expr = read_constant_expression(wasm).unwrap();
-    //                 };
-    //                 let func_idxs: Vec<u32> = wasm.read_vec(|w| {
-    //                     w.read_var_u32()
-    //                 }).unwrap();
-    //                 // type funcref
-    //             }
-    //             1 => {
-    //                 // type elemkind
-    //             }
-    //             2 => {
-    //                 // type elemkind
-    //             }
-    //             3 => {
-    //                 // type elemkind
-    //             }
-    //             4 => {
-    //                 // type funcref
-    //             }
-    //             5 => {
-    //                 // type reftype
-    //             }
-    //             6 => {
-    //                 // type reftype
-    //             }
-    //             7 => {
-    //                 // type reftype
-    //             }
-    //             _ => unimplemented!()
-    //         }
-    //      }
-    //     todo!("element section not yet supported")
-    // })?;
-    // #endregion
-
     let _element: Option<()> =
         handle_section(&mut wasm, &mut header, SectionTy::Element, |_, _| {
             todo!("element section not yet supported")
@@ -283,61 +200,14 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
     let data_section = handle_section(&mut wasm, &mut header, SectionTy::Data, |wasm, _| {
-        let mut data_vec: Vec<DataSegment> = Vec::new();
-
-        wasm.read_vec(|wasm| {
-            let mode = wasm.read_var_u32().unwrap();
-            let data_sec: DataSegment = match mode {
-                0 => {
-                    // active { memory 0, offset e }
-                    trace!("Data section: active");
-                    let offset = { read_constant_instructions(wasm, None, None).unwrap() };
-
-                    let byte_vec = wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap();
-
-                    // WARN: we currently don't take into consideration how we act when we are dealing with globals here
-                    DataSegment {
-                        mode: DataMode::Active(DataModeActive {
-                            memory_idx: 0,
-                            offset,
-                        }),
-                        init: byte_vec,
-                    }
-                }
-                1 => {
-                    // passive
-                    // A passive data segment's contents can be copied into a memory using the `memory.init` instruction
-                    trace!("Data section: passive");
-                    DataSegment {
-                        mode: DataMode::Passive,
-                        init: wasm.read_vec(|el| Ok(el.read_u8().unwrap())).unwrap(),
-                    }
-                }
-                2 => {
-                    // mode active { memory x, offset e }
-                    // this hasn't been yet implemented in wasm
-                    // as per docs:
-
-                    // https://webassembly.github.io/spec/core/binary/modules.html#data-section
-                    // The initial integer can be interpreted as a bitfield. Bit 0 indicates a passive segment, bit 1 indicates the presence of an explicit memory index for an active segment.
-                    // In the current version of WebAssembly, at most one memory may be defined or imported in a single module, so all valid active data segments have a memory value of 0
-                    unimplemented!();
-                }
-                _ => unreachable!(),
-            };
-
-            trace!("{:?}", data_sec.init);
-            data_vec.push(data_sec);
-            Ok(())
-        })?;
-
-        Ok(data_vec)
+        wasm.read_vec(DataSegment::read)
     })?
     .unwrap_or_default();
 
-    // if data_count.is_some() {
-    //     assert_eq!(data_count.unwrap() as usize, data_section.len());
-    // }
+    // https://webassembly.github.io/spec/core/binary/modules.html#data-count-section
+    if data_count.is_some() {
+        assert_eq!(data_count.unwrap() as usize, data_section.len());
+    }
 
     while (skip_section(&mut wasm, &mut header)?).is_some() {}
 
