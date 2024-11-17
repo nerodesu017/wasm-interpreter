@@ -356,7 +356,7 @@ where
                 if let DataMode::Active(active_data) = d.mode.clone() {
                     let mem_idx = active_data.memory_idx as usize;
                     if mem_idx != 0 {
-                        panic!("Active data has memory_idx different than 0");
+                        todo!("Active data has memory_idx different than 0");
                     }
                     assert!(memory_instances.len() > mem_idx);
 

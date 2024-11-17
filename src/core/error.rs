@@ -16,7 +16,7 @@ pub enum RuntimeError {
     StackSmash,
     // https://github.com/wasmi-labs/wasmi/blob/37d1449524a322817c55026eb21eb97dd693b9ce/crates/core/src/trap.rs#L265C5-L265C27
     BadConversionToInteger,
-    MemoryAccessOutOfBounds,
+    MemoryAccessOutOfBounds
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

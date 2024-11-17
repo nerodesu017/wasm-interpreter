@@ -39,8 +39,6 @@ pub struct MemInst {
 }
 
 impl MemInst {
-    // pub const PAGE_SIZE: usize = 1 << 16;
-    // pub const MAX_PAGES: usize = 1 << 16;
     pub fn new(ty: MemType) -> Self {
         let initial_size = (crate::Limits::MEM_PAGE_SIZE as usize) * ty.limits.min as usize;
 

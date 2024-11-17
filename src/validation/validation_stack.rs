@@ -32,7 +32,8 @@ impl ValidationStack {
         self.stack.push(ValidationStackEntry::Label(label_info));
     }
 
-    /// Similar to [`ValidationStack::pop`], but more public and returns a Result<()>
+    /// Similar to [`ValidationStack::pop`], because it pops a value from the stack,
+    /// but more public and doesn't actually return the popped value.
     pub(super) fn drop_val(&mut self) -> Result<()> {
         match self.stack.pop().ok_or(Error::EndInvalidValueStack)? {
             ValidationStackEntry::Val(_) => Ok(()),
@@ -73,6 +74,12 @@ impl ValidationStack {
             .ok_or(Error::InvalidValidationStackValType(None))
     }
 
+    /// Assert the top-most [`ValidationStackEntry`] is a [`ValType::RefType`], after popping it from the [`ValidationStack`]
+    ///
+    /// # Returns
+    ///
+    /// - Returns `Ok(())` if the top-most [`ValidationStackEntry`] is a [`ValType::RefType`].
+    /// - Returns `Err(_)` otherwise.
     pub(super) fn assert_pop_ref_type(&mut self) -> Result<()> {
         let val = self.pop()?;
         match val {

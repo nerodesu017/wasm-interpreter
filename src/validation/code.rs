@@ -26,8 +26,6 @@ pub fn validate_code_section(
         let ty_idx = type_idx_of_fn[idx];
         let func_ty = fn_types[ty_idx].clone();
 
-        // debug!("{:x?}", wasm.full_wasm_binary);
-
         let func_size = wasm.read_var_u32()?;
         let func_block = wasm.make_span(func_size as usize)?;
         let previous_pc = wasm.pc;
@@ -113,7 +111,6 @@ fn read_instructions(
             NOP => {}
             // end
             END => {
-                trace!("Validation: END");
                 // TODO check if there are labels on the stack.
                 // If there are none (i.e. this is the implicit end of the function and not a jump to the end of a function), the stack must only contain the valid return values, no other junk.
                 //

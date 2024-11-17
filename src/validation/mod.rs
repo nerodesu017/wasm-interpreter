@@ -56,48 +56,7 @@ pub fn validate(wasm: &[u8]) -> Result<ValidationInfo> {
     read_next_header(&mut wasm, &mut header)?;
 
     let skip_section = |wasm: &mut WasmReader, section_header: &mut Option<SectionHeader>| {
-        // trace!("Header length: {}", if section_header.is_some() {
-        //     format!("{:#?}",section_header.as_ref().unwrap().ty)
-        //     // section_header.as_ref().unwrap().contents.len()
-        // } else {
-        //     String::new()
-        // });
-
         handle_section(wasm, section_header, SectionTy::Custom, |wasm, h| {
-            // trace!("Hello!");
-            /*
-            customsec   ::= section_0(custom)
-            custom      ::= name byte^*
-             */
-
-            // trace!("Custom section length: {}", h.contents.len());
-            // let initial_pc = wasm.pc;
-            // let remaining_bytes = wasm.remaining_bytes().len();
-
-            // let name_length = wasm.read_var_u32().unwrap();
-            // // final_skip
-            // // // let name_span = Span::new(wasm.pc, name_length as usize);
-            // let mut name_vec = Vec::with_capacity(name_length as usize);
-            // (0..name_length as usize).for_each(|_| {
-            //     name_vec.push(wasm.read_u8().unwrap());
-            // });
-            // let name = unsafe { String::from_utf8_unchecked(name_vec) };
-            // match name.as_str() {
-            //     "name" => {
-            //         let id = wasm.read_u8().unwrap();
-            //         let size = wasm.read_var_u32().unwrap();
-            //         trace!("Name section id: {} - size: {}", id, size);
-            //     }
-            //     _ => {
-            //         trace!("Custom Section \"{}\" not implemented! Skipping...", name);
-            //         // wasm.move_start_to(Span::new(initial_pc + h.contents.len(), 0))?;
-            //         // wasm.skip(h.contents.len() - (wasm.remaining_bytes().len() - remaining_bytes))?;
-            //     }
-            // }
-            // // trace!("Found Custom Section: \"{}\"", name);
-
-            // // wasm.skip(h.contents.len() - name_length as usize - 1)
-            // wasm.skip(h.contents.len() - (wasm.remaining_bytes().len() - remaining_bytes))
             wasm.skip(h.contents.len())
         })
     };
